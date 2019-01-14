@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Hello World!</title>
+  <link rel="stylesheet" href="render.css">
+</head>
+
+<body>
+
+  <h1>Electron Benchmark!</h1>
+  <table class="tftable">
+    <tr>
+      <th></th>
+      <th>1 messages</th>
+      <th>10</th>
+      <th>1000</th>
+    </tr>    
+    <tr>
+      <td>synchronous to main</td>
+      <td><span id='sync_to_main_1' /></td>
+      <td><span id='sync_to_main_10' /></td>
+      <td><span id='sync_to_main_1000' /></td>
+    </tr>
+    <tr>
+        <td>asynchronous to main</td>
+        <td><span id='async_to_main_1' /></td>
+        <td><span id='async_to_main_10' /></td>
+        <td><span id='async_to_main_1000' /></td>
+      </tr>
+    <tr>
+      <td>asynchronous to other renderer</td>
+      <td><span id='async_to_other_renderer_1' /></td>
+      <td><span id='async_to_other_renderer_10' /></td>
+      <td><span id='async_to_other_renderer_1000' /></td>
+    </tr>
+    <tr>
+      <td>asynchronous send to other renderer</td>
+      <td><span id='async_send_to_other_renderer_1' /></td>
+      <td><span id='async_send_to_other_renderer_10' /></td>
+      <td><span id='async_send_to_other_renderer_1000' /></td>
+    </tr>
+    <tr>
+      <td>asynchronous to iframe</td>
+      <td><span id='async_to_iframe_1' /></td>
+      <td><span id='async_to_iframe_10' /></td>
+      <td><span id='async_to_iframe_1000' /></td>
+    </tr>
+    <tr>
+      <td>asynchronous to webview</td>
+      <td><span id='async_to_webview_1' /></td>
+      <td><span id='async_to_webview_10' /></td>
+      <td><span id='async_to_webview_1000' /></td>
+    </tr>
+  </table>
+  <script>
+    // You can also require other files to run in this process
+    require('./render.js');
+    run_bench();
+  </script>
+  <p>
+    Node.js
+    <script>document.write(process.versions.node)</script>
+    Chromium
+    <script> document.write(process.versions.chrome)</script>
+    Electron
+    <script> document.write(process.versions.electron)
+    </script>
+  </p>
+</body>
+
+</html>
