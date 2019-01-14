@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "An Electron app to perform a few benchmarks.",
   "main": "src/main.js",
-  "scripts": {    
+  "scripts": {
     "start": "electron ."
   },
   "repository": {
@@ -17,6 +17,6 @@
   },
   "homepage": "https://github.com/ZacWalk/electron-bench#readme",
   "devDependencies": {
-    "electron": "^4.0.1"
+    "electron": "^3.0.13"
   }
 }

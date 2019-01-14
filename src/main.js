@@ -1,5 +1,5 @@
 // Modules to control application life and create native browser window
-const {app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const url = require('url')
 
@@ -8,10 +8,10 @@ const url = require('url')
 let mainWindow
 let backgroundWindow
 
-function createWindows () {
+function createWindows() {
   // Create the browser window.
-  mainWindow = new BrowserWindow({width: 800, height: 600})
-  backgroundWindow = new BrowserWindow({width: 800, height: 600, show:false })
+  mainWindow = new BrowserWindow({ width: 800, height: 600 })
+  backgroundWindow = new BrowserWindow({ width: 800, height: 600, show: false })
 
   // and load the index.html of the app.
   mainWindow.loadFile('src/render.html')
@@ -58,13 +58,33 @@ app.on('activate', function () {
   }
 })
 
-ipcMain.on('synchronous-message', (event, arg) => {  
+ipcMain.on('get-id', (event, arg) => {
+  if ('background' === arg) {
+    event.returnValue = backgroundWindow.webContentsId()
+  }
+  else if ('main' === arg) {
+    event.returnValue = mainWindow.webContentsId()
+  }
+
+  event.returnValue = 0;
+})
+
+ipcMain.on('synchronous-message', (event, arg) => {
   event.returnValue = 'pong'
 })
 
-ipcMain.on('asynchronous-message', (event, arg) => {  
+ipcMain.on('asynchronous-message', (event, arg) => {
   event.sender.send('asynchronous-reply', arg)
 })
+
+ipcMain.on('asynchronous-reply', (event, arg) => {
+  mainWindow.webContents.send('asynchronous-reply', arg)
+})
+
+ipcMain.on('asynchronous-message-proxey', (event, arg) => {
+  backgroundWindow.webContents.send('asynchronous-message', arg)
+})
+
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
