@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>webview Window</title>
+    <style>
+        body {
+            background-color: #D53C2F;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <script>
+        const { ipcRenderer } = require('electron')
+
+        ipcRenderer.on('asynchronous-message', (event, arg) => {
+            ipcRenderer.sendToHost('asynchronous-reply', arg)
+        })
+    </script>
+</body>
+
+</html>

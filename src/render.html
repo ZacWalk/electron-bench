@@ -16,58 +16,85 @@
       <th>1 messages</th>
       <th>10</th>
       <th>1000</th>
-    </tr>    
+    </tr>
     <tr>
-      <td>synchronous to main</td>
+      <td>synchronous to main (1 hop)</td>
       <td><span id='sync_to_main_1' /></td>
       <td><span id='sync_to_main_10' /></td>
       <td><span id='sync_to_main_1000' /></td>
     </tr>
     <tr>
-        <td>asynchronous to main</td>
-        <td><span id='async_to_main_1' /></td>
-        <td><span id='async_to_main_10' /></td>
-        <td><span id='async_to_main_1000' /></td>
-      </tr>
+      <td>asynchronous to main (1 hop)</td>
+      <td><span id='async_to_main_1' /></td>
+      <td><span id='async_to_main_10' /></td>
+      <td><span id='async_to_main_1000' /></td>
+    </tr>
     <tr>
-      <td>asynchronous to other renderer</td>
+      <td>asynchronous to other renderer (2 hops)</td>
       <td><span id='async_to_other_renderer_1' /></td>
       <td><span id='async_to_other_renderer_10' /></td>
       <td><span id='async_to_other_renderer_1000' /></td>
     </tr>
     <tr>
-      <td>asynchronous send to other renderer</td>
+      <td>asynchronous 'send to' other renderer (2 hops)</td>
       <td><span id='async_send_to_other_renderer_1' /></td>
       <td><span id='async_send_to_other_renderer_10' /></td>
       <td><span id='async_send_to_other_renderer_1000' /></td>
     </tr>
     <tr>
-      <td>asynchronous to iframe</td>
+      <td>asynchronous to iframe (in-proc)</td>
       <td><span id='async_to_iframe_1' /></td>
       <td><span id='async_to_iframe_10' /></td>
       <td><span id='async_to_iframe_1000' /></td>
     </tr>
     <tr>
-      <td>asynchronous to webview</td>
+      <td>asynchronous to webview (2? hops)</td>
       <td><span id='async_to_webview_1' /></td>
       <td><span id='async_to_webview_10' /></td>
       <td><span id='async_to_webview_1000' /></td>
     </tr>
   </table>
-  <script>
-    // You can also require other files to run in this process
-    require('./render.js');
-    run_bench();
-  </script>
+  <button id="run_button">RE-RUN</button>
   <p>
-    Node.js
-    <script>document.write(process.versions.node)</script>
-    Chromium
-    <script> document.write(process.versions.chrome)</script>
-    Electron
-    <script> document.write(process.versions.electron)
+    <p>
+      Node.js
+      <script>document.write(process.versions.node)</script>
+      Chromium
+      <script> document.write(process.versions.chrome)</script>
+      Electron
+      <script> document.write(process.versions.electron)
+      </script>
+    </p>
+    <script>
+      // You can also require other files to run in this process
+      require('./render.js');
+      run_bench();
+
+      let run_button = document.getElementById('run_button');
+
+      run_button.addEventListener('click', function (e) {
+        run_bench();
+      });
+
+
+      var iframeSource = './iframe.html';
+      var iframe = document.createElement('iframe');
+      iframe.setAttribute('src', iframeSource);
+      iframe.setAttribute('id', 'the_iframe');
+      iframe.style.width = 10 + 'px';
+      iframe.style.height = 10 + 'px';
+      document.body.appendChild(iframe);
+
+      var webviewSource = './webview.html';
+      var webview = document.createElement('webview');
+      webview.setAttribute('src', webviewSource);
+      webview.setAttribute('id', 'the_webview');
+      webview.style.width = 10 + 'px';
+      webview.style.height = 10 + 'px';
+      document.body.appendChild(webview);
     </script>
   </p>
+
 </body>
 
 </html>

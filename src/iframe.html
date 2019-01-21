@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>iframe Window</title>
+    <style>
+        body {
+            background-color: #D53C2F;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        window.addEventListener('message', function (e) {
+            window.parent.postMessage(e.data, '*');
+        });
+    </script>
+</body>
+</html>

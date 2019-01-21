@@ -60,13 +60,15 @@ app.on('activate', function () {
 
 ipcMain.on('get-id', (event, arg) => {
   if ('background' === arg) {
-    event.returnValue = backgroundWindow.webContentsId()
+    event.returnValue = backgroundWindow.webContents.id
   }
   else if ('main' === arg) {
-    event.returnValue = mainWindow.webContentsId()
+    event.returnValue = mainWindow.webContents.id
   }
-
-  event.returnValue = 0;
+  else
+  {
+    event.returnValue = 0;
+  }  
 })
 
 ipcMain.on('synchronous-message', (event, arg) => {
