@@ -17,6 +17,6 @@
   },
   "homepage": "https://github.com/ZacWalk/electron-bench#readme",
   "devDependencies": {
-    "electron": "^3.0.13"
+    "electron": "^4.0.0"
   }
 }
