@@ -10,8 +10,20 @@ let backgroundWindow
 
 function createWindows() {
   // Create the browser window.
-  mainWindow = new BrowserWindow({ width: 800, height: 600 })
-  backgroundWindow = new BrowserWindow({ width: 800, height: 600, show: false })
+  mainWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    webPreferences: {
+      nodeIntegration: true
+    }
+  })
+
+  backgroundWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      nodeIntegration: true
+    }
+  })
 
   // and load the index.html of the app.
   mainWindow.loadFile('src/render.html')
