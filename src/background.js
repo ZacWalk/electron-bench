@@ -10,15 +10,10 @@ const { ipcRenderer } = require('electron')
 
 let webContentsId = ipcRenderer.sendSync('get-id', 'main')
 
-
-ipcRenderer.on('synchronous-message', (event, arg) => {  
-  event.returnValue = arg
+ipcRenderer.on('asynchronous-message', (event, ...args) => {
+  event.sender.send('asynchronous-reply', ...args)
 })
 
-ipcRenderer.on('asynchronous-message', (event, arg) => {  
-  event.sender.send('asynchronous-reply', arg)
-})
-
-ipcRenderer.on('asynchronous-message-send-to', (event, arg) => {  
-  event.sender.sendTo(webContentsId, 'asynchronous-reply', arg)
+ipcRenderer.on('asynchronous-message-send-to', (event, ...args) => {
+  event.sender.sendTo(webContentsId, 'asynchronous-reply', ...args)
 })

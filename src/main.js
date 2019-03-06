@@ -80,25 +80,24 @@ ipcMain.on('get-id', (event, arg) => {
   else
   {
     event.returnValue = 0;
-  }  
+  }
 })
 
-ipcMain.on('synchronous-message', (event, arg) => {
-  event.returnValue = 'pong'
+ipcMain.on('synchronous-message', (event, ...args) => {
+  event.returnValue = args
 })
 
-ipcMain.on('asynchronous-message', (event, arg) => {
-  event.sender.send('asynchronous-reply', arg)
+ipcMain.on('asynchronous-message', (event, ...args) => {
+  event.sender.send('asynchronous-reply', ...args)
 })
 
-ipcMain.on('asynchronous-reply', (event, arg) => {
-  mainWindow.webContents.send('asynchronous-reply', arg)
+ipcMain.on('asynchronous-reply', (event, ...args) => {
+  mainWindow.webContents.send('asynchronous-reply', ...args)
 })
 
-ipcMain.on('asynchronous-message-proxey', (event, arg) => {
-  backgroundWindow.webContents.send('asynchronous-message', arg)
+ipcMain.on('asynchronous-message-proxy', (event, ...args) => {
+  backgroundWindow.webContents.send('asynchronous-message', ...args)
 })
-
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.

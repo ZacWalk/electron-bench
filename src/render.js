@@ -9,10 +9,42 @@ function write_to_table(where, what)
   }
 }
 
+const json = {
+  "firstName": "John",
+  "lastName": "Smith",
+  "isAlive": true,
+  "age": 27,
+  "address": {
+    "streetAddress": "21 2nd Street",
+    "city": "New York",
+    "state": "NY",
+    "postalCode": "10021-3100"
+  },
+  "phoneNumbers": [
+    {
+      "type": "home",
+      "number": "212 555-1234"
+    },
+    {
+      "type": "office",
+      "number": "646 555-4567"
+    },
+    {
+      "type": "mobile",
+      "number": "123 456-7890"
+    }
+  ],
+  "children": [],
+  "spouse": null
+}
+
+const payload = json
+// const payload = JSON.stringify(json)
+
 function sync_to_main(count) {
   let start = performance.now();
   for (let i = 0; i < count; i++) {
-    ipcRenderer.sendSync('synchronous-message', 'ping')
+    ipcRenderer.sendSync('synchronous-message', payload)
   }
 
   const time = Math.round(performance.now() - start);
@@ -21,9 +53,9 @@ function sync_to_main(count) {
 
 let resolvers = new Map
 
-ipcRenderer.on('asynchronous-reply', (event, arg) => {
-  resolvers.get(arg)();
-  resolvers.delete(arg);
+ipcRenderer.on('asynchronous-reply', (event, key) => {
+  resolvers.get(key)();
+  resolvers.delete(key);
 })
 
 window.addEventListener('message', function (e) {
@@ -40,7 +72,7 @@ async function async_to_main(count) {
     promises.push( new Promise(function(resolve, reject) {
       let key = "async_to_main_" + count + "_" + i;
       resolvers.set(key, resolve);
-      ipcRenderer.send('asynchronous-message', key)
+      ipcRenderer.send('asynchronous-message', key, payload)
     }));
   }
 
@@ -58,7 +90,7 @@ async function async_to_other_renderer(count)
     promises.push( new Promise(function(resolve, reject) {
       let key = "async_to_other_renderer_" + count + "_" + i;
       resolvers.set(key, resolve);
-      ipcRenderer.send('asynchronous-message-proxey', key)
+      ipcRenderer.send('asynchronous-message-proxy', key, payload)
     }));
   }
 
@@ -77,7 +109,7 @@ async function async_send_to_other_renderer(count)
     promises.push( new Promise(function(resolve, reject) {
       let key = "async_send_to_other_renderer_" + count + "_" + i;
       resolvers.set(key, resolve);
-      ipcRenderer.sendTo(webContentsId, 'asynchronous-message-send-to', key)
+      ipcRenderer.sendTo(webContentsId, 'asynchronous-message-send-to', key, payload)
     }));
   }
 
@@ -145,9 +177,7 @@ async function async_to_webview(count) {
   write_to_table('async_to_webview_' + count, time);
 
   webview.removeEventListener('ipc-message', listener)
-
 }
-
 
 window.run_bench = async function ()
 {
