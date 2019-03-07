@@ -38,12 +38,10 @@ const json = {
   "spouse": null
 }
 
-const payload = json
-// const payload = JSON.stringify(json)
-
-function sync_to_main(count) {
+function sync_to_main(stringify, count) {
   let start = performance.now();
   for (let i = 0; i < count; i++) {
+    const payload = stringify ? JSON.stringify(json) : json
     ipcRenderer.sendSync('synchronous-message', payload)
   }
 
@@ -53,18 +51,24 @@ function sync_to_main(count) {
 
 let resolvers = new Map
 
-ipcRenderer.on('asynchronous-reply', (event, key) => {
+function processReply(key, payload) {
+  if (typeof payload === 'string') {
+    JSON.parse(payload)
+  }
   resolvers.get(key)();
   resolvers.delete(key);
+}
+
+ipcRenderer.on('asynchronous-reply', (event, key, payload) => {
+  processReply(key, payload)
 })
 
 window.addEventListener('message', function (e) {
-  let key = e.data;
-  resolvers.get(key)();
-  resolvers.delete(key);
+  let { key, payload } = e.data;
+  processReply(key, payload)
 });
 
-async function async_to_main(count) {
+async function async_to_main(stringify, count) {
   let start = performance.now();
   let promises = [];
 
@@ -72,6 +76,7 @@ async function async_to_main(count) {
     promises.push( new Promise(function(resolve, reject) {
       let key = "async_to_main_" + count + "_" + i;
       resolvers.set(key, resolve);
+      const payload = stringify ? JSON.stringify(json) : json
       ipcRenderer.send('asynchronous-message', key, payload)
     }));
   }
@@ -81,7 +86,7 @@ async function async_to_main(count) {
   write_to_table('async_to_main_' + count, time);
 }
 
-async function async_to_other_renderer(count)
+async function async_to_other_renderer(stringify, count)
 {
   let start = performance.now();
   let promises = [];
@@ -90,6 +95,7 @@ async function async_to_other_renderer(count)
     promises.push( new Promise(function(resolve, reject) {
       let key = "async_to_other_renderer_" + count + "_" + i;
       resolvers.set(key, resolve);
+      const payload = stringify ? JSON.stringify(json) : json
       ipcRenderer.send('asynchronous-message-proxy', key, payload)
     }));
   }
@@ -99,7 +105,7 @@ async function async_to_other_renderer(count)
   write_to_table('async_to_other_renderer_' + count, time);
 }
 
-async function async_send_to_other_renderer(count)
+async function async_send_to_other_renderer(stringify, count)
 {
   let webContentsId = ipcRenderer.sendSync('get-id', 'background')
   let start = performance.now();
@@ -109,6 +115,7 @@ async function async_send_to_other_renderer(count)
     promises.push( new Promise(function(resolve, reject) {
       let key = "async_send_to_other_renderer_" + count + "_" + i;
       resolvers.set(key, resolve);
+      const payload = stringify ? JSON.stringify(json) : json
       ipcRenderer.sendTo(webContentsId, 'asynchronous-message-send-to', key, payload)
     }));
   }
@@ -118,7 +125,7 @@ async function async_send_to_other_renderer(count)
   write_to_table('async_send_to_other_renderer_' + count, time);
 }
 
-async function async_to_iframe(count)
+async function async_to_iframe(stringify, count)
 {
   let iframeEl = document.getElementById('the_iframe');
   let start = performance.now();
@@ -128,7 +135,8 @@ async function async_to_iframe(count)
     promises.push( new Promise(function(resolve, reject) {
       let key = "async_to_iframe_" + count + "_" + i;
       resolvers.set(key, resolve);
-      iframeEl.contentWindow.postMessage(key, '*')
+      const payload = stringify ? JSON.stringify(json) : json
+      iframeEl.contentWindow.postMessage({ key, payload }, '*')
     }));
   }
 
@@ -179,7 +187,7 @@ async function async_to_webview(count) {
   webview.removeEventListener('ipc-message', listener)
 }
 
-window.run_bench = async function ()
+window.run_bench = async function (stringify)
 {
   // warmn up
   sync_to_main(1);
@@ -190,25 +198,25 @@ window.run_bench = async function ()
   // await async_to_webview(1)
 
   // test
-  sync_to_main(100);
-  sync_to_main(1000);
-  sync_to_main(10000);
+  sync_to_main(stringify, 100);
+  sync_to_main(stringify, 1000);
+  sync_to_main(stringify, 10000);
 
-  await async_to_main(100);
-  await async_to_main(1000);
-  await async_to_main(10000);
+  await async_to_main(stringify, 100);
+  await async_to_main(stringify, 1000);
+  await async_to_main(stringify, 10000);
 
-  await async_to_other_renderer(100)
-  await async_to_other_renderer(1000)
-  await async_to_other_renderer(10000)
+  await async_to_other_renderer(stringify, 100)
+  await async_to_other_renderer(stringify, 1000)
+  await async_to_other_renderer(stringify, 10000)
 
-  await async_send_to_other_renderer(100)
-  await async_send_to_other_renderer(1000)
-  await async_send_to_other_renderer(10000)
+  await async_send_to_other_renderer(stringify, 100)
+  await async_send_to_other_renderer(stringify, 1000)
+  await async_send_to_other_renderer(stringify, 10000)
 
-  await async_to_iframe(100)
-  await async_to_iframe(1000)
-  await async_to_iframe(10000)
+  await async_to_iframe(stringify, 100)
+  await async_to_iframe(stringify, 1000)
+  await async_to_iframe(stringify, 10000)
 
   // await async_to_webview(10)
   // await async_to_webview(100)

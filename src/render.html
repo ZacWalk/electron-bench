@@ -56,6 +56,7 @@
     </tr>
   </table>
   <button id="run_button">RE-RUN</button>
+  <button id="run_button_json">RE-RUN (JSON)</button>
   <p>
     <p>
       Node.js
@@ -72,12 +73,13 @@
 
       setTimeout(run_bench, 1000);
 
-      let run_button = document.getElementById('run_button');
-
-      run_button.addEventListener('click', function (e) {
-        run_bench();
+      document.getElementById('run_button').addEventListener('click', () => {
+        run_bench(false);
       });
 
+      document.getElementById('run_button_json').addEventListener('click', () => {
+        run_bench(true);
+      })
 
       var iframeSource = './iframe.html';
       var iframe = document.createElement('iframe');
