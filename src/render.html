@@ -53,8 +53,8 @@
       <td><span id='async_to_webview_10000' /></td>
     </tr>
   </table>
-  <button id="run_button">RE-RUN</button>
-  <button id="run_button_json">RE-RUN (JSON)</button>
+  <button id="run_button">Run</button>
+  <button id="run_button_json">Run (JSON)</button>
   <p>
     <p>
       Node.js
@@ -69,14 +69,12 @@
       // You can also require other files to run in this process
       require('./render.js');
 
-      setTimeout(run_bench, 1000);
-
       document.getElementById('run_button').addEventListener('click', () => {
-        run_bench(false);
+        setTimeout(() => run_bench(false))
       });
 
       document.getElementById('run_button_json').addEventListener('click', () => {
-        run_bench(true);
+        setTimeout(() => run_bench(true))
       })
 
       var iframeSource = './iframe.html';
