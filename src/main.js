@@ -11,6 +11,7 @@ let backgroundWindow
 function createWindows() {
   // Create the browser window.
   mainWindow = new BrowserWindow({
+    title: 'Electron Benchmark!',
     width: 800,
     height: 600,
     webPreferences: {
