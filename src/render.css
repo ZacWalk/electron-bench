@@ -5,3 +5,7 @@ body { font-family: Calibri ; font-size:18px; }
 .tftable tr {background-color:#d4e3e5;}
 .tftable td {border-width: 1px;padding: 8px;border-style: solid;border-color: #729ea5;}
 .tftable tr:hover {background-color:#ffffff;}
+
+p.measures {
+    font-size: 0.8em
+}
