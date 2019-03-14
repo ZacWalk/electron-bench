@@ -249,8 +249,6 @@ window.run_bench = async function (stringify)
   await async_to_iframe(1)
   // await async_to_webview(1)
 
-  measurements.clear();
-
   // test
   sync_to_main(stringify, 100);
   sync_to_main(stringify, 1000);
