@@ -57,7 +57,7 @@ const json = {
 let resolvers = new Map
 let measurements = new Map
 
-function measure(key) {
+function calculateAndShowPvalues(key) {
 
   const shouldMeasure = document.getElementById("show_percentage").checked
   if (!shouldMeasure) return
@@ -83,7 +83,7 @@ function sync_to_main(stringify, count) {
   const time = Math.round(performance.now() - start);
   write_to_table('sync_to_main_' + count, time);
 
-  measure('sync_to_main_' + count)
+  calculateAndShowPvalues('sync_to_main_' + count)
 }
 
 function saveResolver(key, resolver) {
@@ -129,7 +129,7 @@ async function async_to_main(stringify, count) {
   const time = Math.round(performance.now() - start);
   write_to_table('async_to_main_' + count, time);
 
-  measure('async_to_main_' + count)
+  calculateAndShowPvalues('async_to_main_' + count)
 }
 
 async function async_to_other_renderer(stringify, count)
@@ -150,7 +150,7 @@ async function async_to_other_renderer(stringify, count)
   const time = Math.round(performance.now() - start);
   write_to_table('async_to_other_renderer_' + count, time);
 
-  measure('async_to_other_renderer_' + count)
+  calculateAndShowPvalues('async_to_other_renderer_' + count)
 }
 
 async function async_send_to_other_renderer(stringify, count)
@@ -172,7 +172,7 @@ async function async_send_to_other_renderer(stringify, count)
   const time = Math.round(performance.now() - start);
   write_to_table('async_send_to_other_renderer_' + count, time);
 
-  measure('async_send_to_other_renderer_' + count)
+  calculateAndShowPvalues('async_send_to_other_renderer_' + count)
 }
 
 async function async_to_iframe(stringify, count)
@@ -194,7 +194,7 @@ async function async_to_iframe(stringify, count)
   const time = Math.round(performance.now() - start);
   write_to_table('async_to_iframe_' + count, time);
 
-  measure('async_to_iframe_' + count)
+  calculateAndShowPvalues('async_to_iframe_' + count)
 }
 
 async function async_to_webview(count) {
