@@ -28,7 +28,7 @@ class SyncToMainTest extends TestBase {
 
     static async run(count) {
         const test = new SyncToMainTest(count, 'sync_to_main', 'synchronous-message')
-        test.runTest()
+        return test.runTest()
     }
 }
 
@@ -59,7 +59,7 @@ class AsyncSendToOtherRendererTest extends TestBase {
 
     static async run(count) {
         const test = new AsyncSendToOtherRendererTest(count, 'async_send_to_other_renderer', 'asynchronous-message-send-to')
-        test.runTest()
+        return test.runTest()
     }
 }
 
@@ -75,7 +75,7 @@ class AsyncToIframeTest extends TestBase {
 
     static async run(count) {
         const test = new AsyncToIframeTest(count, 'async_to_iframe')
-        test.runTest()
+        return test.runTest()
     }
 }
 

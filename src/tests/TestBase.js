@@ -24,6 +24,10 @@ class TestBase {
 
         ipcRenderer.on('asynchronous-reply', this.processReply)
         window.addEventListener('message', this.processWindowMessage)
+
+        this.milisMultiplier = parseFloat(document.getElementById('milisMultiplier').value)
+
+        this.milisMultiplier = this.milisMultiplier === undefined ? 1 : this.milisMultiplier
     }
 
     processWindowMessage(e) {
@@ -90,7 +94,9 @@ class TestBase {
     }
 
     sendMessage(key, payload) {
-        ipcRenderer.send(this.ipcChannel, key, payload)
+        if (this.ipcChannel) {
+            ipcRenderer.send(this.ipcChannel, key, payload)
+        }
     }
 
     async runTest() {
@@ -100,7 +106,7 @@ class TestBase {
                 setTimeout(() => {
                     this.saveResolver(this.getKey(i), resolve);
                     this.sendMessage(this.getKey(i), this.getPayload())
-                }, i + 1);
+                }, i * this.milisMultiplier);
             }))
         }
 

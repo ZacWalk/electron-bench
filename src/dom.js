@@ -1,7 +1,5 @@
 //@ts-check
 
-const MeasurementProvider = require("./MeasurementProvider");
-
 function write_to_table(where, what) {
     const element = document.getElementById(where)
     if (element) {
@@ -29,5 +27,6 @@ function writeMeasuresToTable(where, measures) {
 
 
 module.exports = {
-    writeMeasuresToTable, write_to_table
+    writeMeasuresToTable,
+    write_to_table
 }
