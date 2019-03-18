@@ -54,8 +54,9 @@
     </tr>
   </table>
   <button id="run_button">Run</button>
-  <button id="run_button_json">Run (JSON)</button>
-  <input type="checkbox" name="show_percentage" id="show_percentage"/>
+  <input type="checkbox" name="stringify_json" id="stringify_json"/>
+  <label for="stringify_json">Stringify JSON before sending</label>
+  <input type="checkbox" name="show_percentage" id="show_percentage" checked/>
   <label for="show_percentage">Show percentage values</label>
   <p>
     <p>
@@ -72,12 +73,8 @@
       require('./render.js');
 
       document.getElementById('run_button').addEventListener('click', () => {
-        setTimeout(() => run_bench(false))
+        setTimeout(() => run_bench(document.getElementById("stringify_json").checked))
       });
-
-      document.getElementById('run_button_json').addEventListener('click', () => {
-        setTimeout(() => run_bench(true))
-      })
 
       var iframeSource = './iframe.html';
       var iframe = document.createElement('iframe');
