@@ -80,7 +80,7 @@ window.generateTable = () => {
 window.run_bench = async function (stringify)
 {
 
-
+  generateTable()
   // Generate test functions bound to numbers
   const testBench = []
   tests.forEach(test => {

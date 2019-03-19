@@ -11,7 +11,7 @@ class SyncToMainTest extends TestBase {
         ipcRenderer.sendSync(this.ipcChannel, key, payload)
     }
 
-    async runTest() { // Async for consist return type
+    async runTest() { // Async for consistant return type
         this.start = performance.now()
 
         for (let i = 0; i < this.count; i++) {
@@ -41,7 +41,7 @@ class AsyncToMainTest extends TestBase {
 
 class AsyncToOtherRendererTest extends TestBase {
     static async run(count) {
-        const test = new AsyncToMainTest(count, 'async_to_other_renderer', 'asynchronous-message-proxy')
+        const test = new AsyncToOtherRendererTest(count, 'async_to_other_renderer', 'asynchronous-message-proxy')
         return test.runTest()
     }
 }

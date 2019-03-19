@@ -35,6 +35,7 @@ function generateTable(numTests = [100, 1000, 10000]) {
     }
 
     const table = document.getElementById('resultTable')
+    table.innerHTML = ''
 
     function appendHeader() {
         const thead = document.createElement('thead')
