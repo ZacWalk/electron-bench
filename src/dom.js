@@ -25,7 +25,7 @@ function writeMeasuresToTable(where, measures) {
     }
 }
 
-function generateTable(numTests = [100, 1000, 10000]) {
+function generateTableSync(numTests = [100, 1000, 10000]) {
     const tests = {
         sync_to_main: `synchronous to main <br/>ipcRenderer.sendSync api (1 hop)`,
         async_to_main: `asynchronous to main<br/>ipcRenderer.send api (1 hop)`,
@@ -82,9 +82,17 @@ function generateTable(numTests = [100, 1000, 10000]) {
     appendRows()
 }
 
+async function generateTable(numTests) {
+    return new Promise((resolve) => {
+        generateTableSync(numTests)
+        setTimeout(() => {
+            resolve()
+        }, 100);
+    })
+}
 
 module.exports = {
     writeMeasuresToTable,
     write_to_table,
-    generateTable
+    generateTable,
 }

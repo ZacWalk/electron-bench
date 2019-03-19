@@ -9,7 +9,8 @@ const {
 
 const {
   generateTable,
-  write_to_table
+  write_to_table,
+  clearTable
 } = require('./dom')
 
 let resolvers = new Map
@@ -80,7 +81,9 @@ window.generateTable = () => {
 window.run_bench = async function (stringify)
 {
 
-  generateTable()
+  // Generate empty table again
+  await generateTable(numTests)
+
   // Generate test functions bound to numbers
   const testBench = []
   tests.forEach(test => {
