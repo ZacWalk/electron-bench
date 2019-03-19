@@ -8,6 +8,7 @@ const {
 } = require('./tests/Test')
 
 const {
+  generateTable,
   write_to_table
 } = require('./dom')
 
@@ -59,27 +60,41 @@ async function async_to_webview(count) {
   webview.removeEventListener('ipc-message', listener)
 }
 
+// Define number of tests that will be run
+const numTests = [100, 1000, 10000]
+
+// Define test functions that will be run, e.g. AsyncToMainTest.run(100)
+const tests = [
+  SyncToMainTest.run,
+  AsyncToMainTest.run,
+  AsyncToOtherRendererTest.run,
+  AsyncSendToOtherRendererTest.run,
+  AsyncToIframeTest.run
+]
+
+
+window.generateTable = () => {
+  generateTable(numTests)
+}
+
 window.run_bench = async function (stringify)
 {
-  SyncToMainTest.run(100)
-  SyncToMainTest.run(1000)
-  SyncToMainTest.run(10000)
 
-  await AsyncToMainTest.run(100)
-  await AsyncToMainTest.run(1000)
-  await AsyncToMainTest.run(10000)
 
-  await AsyncToOtherRendererTest.run(100)
-  await AsyncToOtherRendererTest.run(1000)
-  await AsyncToOtherRendererTest.run(10000)
+  // Generate test functions bound to numbers
+  const testBench = []
+  tests.forEach(test => {
+    numTests.forEach(num => {
+      testBench.push(test.bind(this, num))
+    })
+  })
 
-  await AsyncSendToOtherRendererTest.run(100)
-  await AsyncSendToOtherRendererTest.run(1000)
-  await AsyncSendToOtherRendererTest.run(10000)
+  // run the tests
+  for (let i = 0; i < testBench.length; i++) {
+    const test = testBench[i];
+    await test()
+  }
 
-  await AsyncToIframeTest.run(100)
-  await AsyncToIframeTest.run(1000)
-  await AsyncToIframeTest.run(10000)
 
   // await async_to_webview(10)
   // await async_to_webview(100)

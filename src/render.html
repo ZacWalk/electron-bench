@@ -9,50 +9,7 @@
 <body>
 
   <p>This Electron app tests various latencies for different IPC roundtrip scenarios.<strong>Time reported in total milliseconds.</strong></p>
-    <table class="tftable">
-    <tr>
-      <th></th>
-      <th>100 message</th>
-      <th>1000 messages</th>
-      <th>10000 messages</th>
-    </tr>
-    <tr id="sync_to_main">
-      <td>synchronous to main <br/>ipcRenderer.sendSync api (1 hop)</td>
-      <td><span id='sync_to_main_100' /></td>
-      <td><span id='sync_to_main_1000' /></td>
-      <td><span id='sync_to_main_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to main<br/>ipcRenderer.send api (1 hop)</td>
-      <td><span id='async_to_main_100' /></td>
-      <td><span id='async_to_main_1000' /></td>
-      <td><span id='async_to_main_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to other renderer <br/>ipcRenderer.send api (2 hops)</td>
-      <td><span id='async_to_other_renderer_100' /></td>
-      <td><span id='async_to_other_renderer_1000' /></td>
-      <td><span id='async_to_other_renderer_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to other renderer <br/>ipcRenderer.sendTo api (2 hops)</td>
-      <td><span id='async_send_to_other_renderer_100' /></td>
-      <td><span id='async_send_to_other_renderer_1000' /></td>
-      <td><span id='async_send_to_other_renderer_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to iframe <br/>iframe.contentWindow.postMessage api (in-proc)</td>
-      <td><span id='async_to_iframe_100' /></td>
-      <td><span id='async_to_iframe_1000' /></td>
-      <td><span id='async_to_iframe_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to webview <br/>TODO (2? hops)</td>
-      <td><span id='async_to_webview_100' /></td>
-      <td><span id='async_to_webview_1000' /></td>
-      <td><span id='async_to_webview_10000' /></td>
-    </tr>
-  </table>
+    <table class="tftable" id="resultTable"></table>
   <p>
     <input type="checkbox" name="stringify_json" id="stringify_json"/>
     <label for="stringify_json">Stringify JSON before sending</label>
@@ -79,6 +36,8 @@
     <script>
       // You can also require other files to run in this process
       require('./render.js');
+
+      window.generateTable()
 
       document.getElementById('run_button').addEventListener('click', () => {
         setTimeout(() => run_bench(document.getElementById("stringify_json").checked))

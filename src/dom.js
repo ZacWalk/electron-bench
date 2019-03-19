@@ -25,8 +25,65 @@ function writeMeasuresToTable(where, measures) {
     }
 }
 
+function generateTable(numTests = [100, 1000, 10000]) {
+    const tests = {
+        sync_to_main: `synchronous to main <br/>ipcRenderer.sendSync api (1 hop)`,
+        async_to_main: `asynchronous to main<br/>ipcRenderer.send api (1 hop)`,
+        async_to_other_renderer: `asynchronous to other renderer <br/>ipcRenderer.send api (2 hops)`,
+        async_send_to_other_renderer: `asynchronous to other renderer <br/>ipcRenderer.sendTo api (2 hops)`,
+        async_to_iframe: `asynchronous to iframe <br/>iframe.contentWindow.postMessage api (in-proc)`
+    }
+
+    const table = document.getElementById('resultTable')
+
+    function appendHeader() {
+        const thead = document.createElement('thead')
+        const headRow = document.createElement('tr')
+
+        const headerCells = ['', ...numTests].map((num) => {
+            const th = document.createElement('th')
+            th.append(num.toString(), num ? " messages" : '')
+            return th
+        })
+
+        headRow.append(...headerCells)
+        thead.append(headRow)
+        table.append(thead)
+    }
+
+    function createRow(test) {
+        const desc = tests[test];
+
+        const row = document.createElement('tr')
+        const spans = numTests.map(num => {
+            const span = document.createElement('span')
+            span.setAttribute('id', `${test}_${num}`)
+            return span
+        })
+        const spanCells = spans.map(span => {
+            const td = document.createElement('td')
+            td.append(span)
+            return td
+        })
+
+        const descCell = document.createElement('td')
+        descCell.innerHTML = desc
+
+        row.append(...[descCell, ...spanCells])
+        table.append(row)
+    }
+
+    function appendRows() {
+        Object.keys(tests).forEach(createRow)
+    }
+
+    appendHeader()
+    appendRows()
+}
+
 
 module.exports = {
     writeMeasuresToTable,
-    write_to_table
+    write_to_table,
+    generateTable
 }
