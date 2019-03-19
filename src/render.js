@@ -10,8 +10,9 @@ const {
 const {
   generateTable,
   write_to_table,
-  clearTable
 } = require('./dom')
+
+const payload = require('./tests/payload')
 
 let resolvers = new Map
 
@@ -78,8 +79,17 @@ window.generateTable = () => {
   generateTable(numTests)
 }
 
+window.fillPayloadField = () => {
+  const payloadString = JSON.stringify(payload.getPayload(), undefined, '    ')
+  document.getElementById('payloadInput').append(payloadString)
+}
+
 window.run_bench = async function (stringify)
 {
+
+  if (!payload.updatePayload()) {
+    return
+  }
 
   // Generate empty table again
   await generateTable(numTests)

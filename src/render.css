@@ -9,3 +9,12 @@ body { font-family: Calibri ; font-size:18px; }
 p.measures {
     font-size: 0.8em
 }
+
+#payloadInput {
+    display: block;
+    width: 100%;
+    height: 20em;
+    font-size: 0.8em;
+    font-family: monospace;
+    padding: 10
+}

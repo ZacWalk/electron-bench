@@ -1,4 +1,4 @@
-module.exports = {
+const defaultPayload = {
     "firstName": "John",
     "lastName": "Smith",
     "isAlive": true,
@@ -24,4 +24,30 @@ module.exports = {
     ],
     "children": [],
     "spouse": null
+}
+
+function setCurrentPayload (payload) {
+    currentPayload = payload;
+}
+setCurrentPayload(defaultPayload)
+
+function getPayload(){
+    return currentPayload
+}
+
+function updatePayload() {
+    const text = document.getElementById('payloadInput').value
+    try {
+        json = JSON.parse(text)
+        setCurrentPayload(json)
+        return true
+    } catch (e) {
+        alert("Unable to parse input payload. Please try again!")
+        return false
+    }
+}
+
+module.exports = {
+    getPayload,
+    updatePayload
 }

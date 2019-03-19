@@ -1,6 +1,6 @@
 //@ts-check
 const MeasurementProvider = require('../MeasurementProvider');
-const json = require('./payload')
+const payload = require('./payload')
 const {
     ipcRenderer
 } = require('electron')
@@ -72,7 +72,7 @@ class TestBase {
 
     getPayload() {
         const stringify = document.getElementById("stringify_json").checked
-        return stringify ? JSON.stringify(json) : json
+        return stringify ? JSON.stringify(payload.getPayload()) : payload.getPayload()
     }
 
     getKey(i) {

@@ -22,6 +22,10 @@
     <label for="milisMultiplier">Wait time [ms]</label>
     <input type="text" id="milisMultiplier" value="1"/>
   </p>
+  <p>
+    Payload:
+    <textarea id="payloadInput"></textarea>
+  </p>
   <button id="run_button">Run</button>
   <p>
     <p>
@@ -38,6 +42,8 @@
       require('./render.js');
 
       window.generateTable()
+
+      window.fillPayloadField()
 
       document.getElementById('run_button').addEventListener('click', () => {
         setTimeout(() => run_bench(document.getElementById("stringify_json").checked))
