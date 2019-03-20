@@ -26,6 +26,8 @@ const defaultPayload = {
     "spouse": null
 }
 
+let currentPayload;
+
 function setCurrentPayload (payload) {
     currentPayload = payload;
 }
