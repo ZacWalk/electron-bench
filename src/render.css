@@ -20,3 +20,7 @@ p.measures {
     font-family: monospace;
     padding: 10
 }
+#run_button {
+    font-size: 1.3em;
+    margin: 0.5em 0;
+}

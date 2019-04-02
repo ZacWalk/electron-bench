@@ -10,6 +10,7 @@
 
   <p>This Electron app tests various latencies for different IPC roundtrip scenarios.<strong>Time reported in total milliseconds.</strong></p>
     <table class="tftable" id="resultTable"></table>
+    <button id="run_button">Run</button>
   <p>
     <input type="checkbox" name="stringify_json" id="stringify_json"/>
     <label for="stringify_json">Stringify JSON before sending</label>
@@ -26,7 +27,6 @@
     Payload:
     <textarea id="payloadInput"></textarea>
   </p>
-  <button id="run_button">Run</button>
   <p>
     <p>
       Node.js
