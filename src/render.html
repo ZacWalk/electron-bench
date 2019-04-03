@@ -9,52 +9,24 @@
 <body>
 
   <p>This Electron app tests various latencies for different IPC roundtrip scenarios.<strong>Time reported in total milliseconds.</strong></p>
-    <table class="tftable">
-    <tr>
-      <th></th>
-      <th>100 message</th>
-      <th>1000 messages</th>
-      <th>10000 messages</th>
-    </tr>
-    <tr>
-      <td>synchronous to main <br/>ipcRenderer.sendSync api (1 hop)</td>
-      <td><span id='sync_to_main_100' /></td>
-      <td><span id='sync_to_main_1000' /></td>
-      <td><span id='sync_to_main_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to main<br/>ipcRenderer.send api (1 hop)</td>
-      <td><span id='async_to_main_100' /></td>
-      <td><span id='async_to_main_1000' /></td>
-      <td><span id='async_to_main_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to other renderer <br/>ipcRenderer.send api (2 hops)</td>
-      <td><span id='async_to_other_renderer_100' /></td>
-      <td><span id='async_to_other_renderer_1000' /></td>
-      <td><span id='async_to_other_renderer_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to other renderer <br/>ipcRenderer.sendTo api (2 hops)</td>
-      <td><span id='async_send_to_other_renderer_100' /></td>
-      <td><span id='async_send_to_other_renderer_1000' /></td>
-      <td><span id='async_send_to_other_renderer_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to iframe <br/>iframe.contentWindow.postMessage api (in-proc)</td>
-      <td><span id='async_to_iframe_100' /></td>
-      <td><span id='async_to_iframe_1000' /></td>
-      <td><span id='async_to_iframe_10000' /></td>
-    </tr>
-    <tr>
-      <td>asynchronous to webview <br/>TODO (2? hops)</td>
-      <td><span id='async_to_webview_100' /></td>
-      <td><span id='async_to_webview_1000' /></td>
-      <td><span id='async_to_webview_10000' /></td>
-    </tr>
-  </table>
-  <button id="run_button">Run</button>
-  <button id="run_button_json">Run (JSON)</button>
+    <table class="tftable" id="resultTable"></table>
+    <button id="run_button">Run</button>
+  <p>
+    <input type="checkbox" name="stringify_json" id="stringify_json"/>
+    <label for="stringify_json">Stringify JSON before sending</label>
+  </p>
+  <p>
+    <input type="checkbox" name="show_percentage" id="show_percentage" checked/>
+    <label for="show_percentage">Show percentage values</label>
+  </p>
+<p title="How long we should wait between scheduling a new message in the queue. If this is 1, sending 10 000 messages will take approximately 10 seconds. Recommended value is between 0.3 to 1">
+    <label for="milisMultiplier">Wait time [ms]</label>
+    <input type="text" id="milisMultiplier" value="1"/>
+  </p>
+  <p>
+    Payload:
+    <textarea id="payloadInput"></textarea>
+  </p>
   <p>
     <p>
       Node.js
@@ -69,13 +41,13 @@
       // You can also require other files to run in this process
       require('./render.js');
 
-      document.getElementById('run_button').addEventListener('click', () => {
-        setTimeout(() => run_bench(false))
-      });
+      window.generateTable()
 
-      document.getElementById('run_button_json').addEventListener('click', () => {
-        setTimeout(() => run_bench(true))
-      })
+      window.fillPayloadField()
+
+      document.getElementById('run_button').addEventListener('click', () => {
+        setTimeout(() => run_bench(document.getElementById("stringify_json").checked))
+      });
 
       var iframeSource = './iframe.html';
       var iframe = document.createElement('iframe');

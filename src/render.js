@@ -1,148 +1,23 @@
-const { ipcRenderer } = require('electron')
+//@ts-check
+const {
+  SyncToMainTest,
+  AsyncToMainTest,
+  AsyncToOtherRendererTest,
+  AsyncSendToOtherRendererTest,
+  AsyncToIframeTest
+} = require('./tests/Test')
 
+const {
+  generateTable,
+  write_to_table,
+} = require('./dom')
 
-function write_to_table(where, what)
-{
-  const element = document.getElementById(where)
-  if (element) {
-    element.innerText = what;
-  }
-}
-
-const json = {
-  "firstName": "John",
-  "lastName": "Smith",
-  "isAlive": true,
-  "age": 27,
-  "address": {
-    "streetAddress": "21 2nd Street",
-    "city": "New York",
-    "state": "NY",
-    "postalCode": "10021-3100"
-  },
-  "phoneNumbers": [
-    {
-      "type": "home",
-      "number": "212 555-1234"
-    },
-    {
-      "type": "office",
-      "number": "646 555-4567"
-    },
-    {
-      "type": "mobile",
-      "number": "123 456-7890"
-    }
-  ],
-  "children": [],
-  "spouse": null
-}
-
-function sync_to_main(stringify, count) {
-  let start = performance.now();
-  for (let i = 0; i < count; i++) {
-    const payload = stringify ? JSON.stringify(json) : json
-    ipcRenderer.sendSync('synchronous-message', payload)
-  }
-
-  const time = Math.round(performance.now() - start);
-  write_to_table('sync_to_main_' + count, time);
-}
+const payload = require('./tests/payload')
 
 let resolvers = new Map
 
-function processReply(key, payload) {
-  if (typeof payload === 'string') {
-    JSON.parse(payload)
-  }
-  resolvers.get(key)();
-  resolvers.delete(key);
-}
-
-ipcRenderer.on('asynchronous-reply', (event, key, payload) => {
-  processReply(key, payload)
-})
-
-window.addEventListener('message', function (e) {
-  let { key, payload } = e.data;
-  processReply(key, payload)
-});
-
-async function async_to_main(stringify, count) {
-  let start = performance.now();
-  let promises = [];
-
-  for (let i = 0; i < count; i++) {
-    promises.push( new Promise(function(resolve, reject) {
-      let key = "async_to_main_" + count + "_" + i;
-      resolvers.set(key, resolve);
-      const payload = stringify ? JSON.stringify(json) : json
-      ipcRenderer.send('asynchronous-message', key, payload)
-    }));
-  }
-
-  await Promise.all(promises);
-  const time = Math.round(performance.now() - start);
-  write_to_table('async_to_main_' + count, time);
-}
-
-async function async_to_other_renderer(stringify, count)
-{
-  let start = performance.now();
-  let promises = [];
-
-  for (let i = 0; i < count; i++) {
-    promises.push( new Promise(function(resolve, reject) {
-      let key = "async_to_other_renderer_" + count + "_" + i;
-      resolvers.set(key, resolve);
-      const payload = stringify ? JSON.stringify(json) : json
-      ipcRenderer.send('asynchronous-message-proxy', key, payload)
-    }));
-  }
-
-  await Promise.all(promises);
-  const time = Math.round(performance.now() - start);
-  write_to_table('async_to_other_renderer_' + count, time);
-}
-
-async function async_send_to_other_renderer(stringify, count)
-{
-  let webContentsId = ipcRenderer.sendSync('get-id', 'background')
-  let start = performance.now();
-  let promises = [];
-
-  for (let i = 0; i < count; i++) {
-    promises.push( new Promise(function(resolve, reject) {
-      let key = "async_send_to_other_renderer_" + count + "_" + i;
-      resolvers.set(key, resolve);
-      const payload = stringify ? JSON.stringify(json) : json
-      ipcRenderer.sendTo(webContentsId, 'asynchronous-message-send-to', key, payload)
-    }));
-  }
-
-  await Promise.all(promises);
-  const time = Math.round(performance.now() - start);
-  write_to_table('async_send_to_other_renderer_' + count, time);
-}
-
-async function async_to_iframe(stringify, count)
-{
-  let iframeEl = document.getElementById('the_iframe');
-  let start = performance.now();
-  let promises = [];
-
-  for (let i = 0; i < count; i++) {
-    promises.push( new Promise(function(resolve, reject) {
-      let key = "async_to_iframe_" + count + "_" + i;
-      resolvers.set(key, resolve);
-      const payload = stringify ? JSON.stringify(json) : json
-      iframeEl.contentWindow.postMessage({ key, payload }, '*')
-    }));
-  }
-
-  await Promise.all(promises);
-  const time = Math.round(performance.now() - start);
-  write_to_table('async_to_iframe_' + count, time);
+function saveResolver(key, resolver) {
+  resolvers.set(key, resolver)
 }
 
 async function async_to_webview(count) {
@@ -153,7 +28,7 @@ async function async_to_webview(count) {
   // for (let i = 0; i < count; i++) {
   //   promises.push( new Promise(function(resolve, reject) {
   //     let key = "async_to_webview_" + count + "_" + i;
-  //     resolvers.set(key, resolve);
+  //     saveResolver(key, resolve);
   //     webviewEl.send(key)
   //   }));
   // }
@@ -175,7 +50,7 @@ async function async_to_webview(count) {
   for (let i = 0; i < count; i++) {
     promises.push( new Promise(function(resolve, reject) {
       let key = "async_to_webview_" + count + "_" + i;
-      resolvers.set(key, resolve);
+      saveResolver(key, resolve);
       webviewEl.send('asynchronous-message', key)
     }));
   }
@@ -187,36 +62,52 @@ async function async_to_webview(count) {
   webview.removeEventListener('ipc-message', listener)
 }
 
+// Define number of tests that will be run
+const numTests = [100, 1000, 10000]
+
+// Define test functions that will be run, e.g. AsyncToMainTest.run(100)
+const tests = [
+  SyncToMainTest.run,
+  AsyncToMainTest.run,
+  AsyncToOtherRendererTest.run,
+  AsyncSendToOtherRendererTest.run,
+  AsyncToIframeTest.run
+]
+
+
+window.generateTable = () => {
+  generateTable(numTests)
+}
+
+window.fillPayloadField = () => {
+  const payloadString = JSON.stringify(payload.getPayload(), undefined, '    ')
+  document.getElementById('payloadInput').append(payloadString)
+}
+
 window.run_bench = async function (stringify)
 {
-  // warmn up
-  sync_to_main(1);
-  await async_to_main(1);
-  await async_to_other_renderer(1)
-  await async_send_to_other_renderer(1)
-  await async_to_iframe(1)
-  // await async_to_webview(1)
 
-  // test
-  sync_to_main(stringify, 100);
-  sync_to_main(stringify, 1000);
-  sync_to_main(stringify, 10000);
+  if (!payload.updatePayload()) {
+    return
+  }
 
-  await async_to_main(stringify, 100);
-  await async_to_main(stringify, 1000);
-  await async_to_main(stringify, 10000);
+  // Generate empty table again
+  await generateTable(numTests)
 
-  await async_to_other_renderer(stringify, 100)
-  await async_to_other_renderer(stringify, 1000)
-  await async_to_other_renderer(stringify, 10000)
+  // Generate test functions bound to numbers
+  const testBench = []
+  tests.forEach(test => {
+    numTests.forEach(num => {
+      testBench.push(test.bind(this, num))
+    })
+  })
 
-  await async_send_to_other_renderer(stringify, 100)
-  await async_send_to_other_renderer(stringify, 1000)
-  await async_send_to_other_renderer(stringify, 10000)
+  // run the tests
+  for (let i = 0; i < testBench.length; i++) {
+    const test = testBench[i];
+    await test()
+  }
 
-  await async_to_iframe(stringify, 100)
-  await async_to_iframe(stringify, 1000)
-  await async_to_iframe(stringify, 10000)
 
   // await async_to_webview(10)
   // await async_to_webview(100)
