@@ -15,14 +15,17 @@ function createWindows() {
     width: 800,
     height: 600,
     webPreferences: {
-      nodeIntegration: true
+      contextIsolation: false,
+      nodeIntegration: true,
+      preload: path.join(__dirname, 'preload.js')
     }
   })
 
   backgroundWindow = new BrowserWindow({
     show: false,
     webPreferences: {
-      nodeIntegration: true
+      contextIsolation: false,
+      nodeIntegration: true,
     }
   })
 
