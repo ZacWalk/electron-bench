@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/ZacWalk/electron-bench#readme",
   "devDependencies": {
-    "electron": "13.0.0-beta.8",
+    "electron": "13.6.6",
     "percentile": "1.2.1"
   }
 }
