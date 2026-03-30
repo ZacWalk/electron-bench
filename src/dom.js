@@ -1,12 +1,14 @@
 //@ts-check
 
+/** @param {string} where @param {string | number} what */
 function write_to_table(where, what) {
     const element = document.getElementById(where)
     if (element) {
-        element.innerText = what;
+        element.innerText = String(what);
     }
 }
 
+/** @param {string} where @param {{ average(): number, getPercentile(p: number): number }} measures */
 function writeMeasuresToTable(where, measures) {
     const element = document.getElementById(where)
     const childEl = document.createElement("div");
@@ -25,17 +27,98 @@ function writeMeasuresToTable(where, measures) {
     }
 }
 
+/** @param {string[]} steps @param {string} arrow */
+function buildRouteNodes(steps, arrow) {
+    return steps.map((step, index) => {
+        const node = `<span class="route_node">${step}</span>`
+        if (index === steps.length - 1) {
+            return node
+        }
+
+        return `${node}<span class="route_arrow">${arrow}</span>`
+    }).join('')
+}
+
+/** @param {{ label: string, steps: string[], arrow?: string }} route */
+function buildRouteLine(route) {
+    return `<div class="route_flow"><span class="route_label">${route.label}</span><div class="route_nodes">${buildRouteNodes(route.steps, route.arrow || '→')}</div></div>`
+}
+
+/** @param {{ title: string, detail: string, routes: Array<{ label: string, steps: string[], arrow?: string }> }} config */
+function buildRouteCard(config) {
+    const routeLines = config.routes.map(buildRouteLine).join('')
+    return `<div class="route_card"><div class="route_title">${config.title}</div><div class="route_detail">${config.detail}</div>${routeLines}</div>`
+}
+
+/** @param {number[]} [numTests] */
 function generateTableSync(numTests = [100, 1000, 10000]) {
     const tests = {
-        sync_to_main: `synchronous to main <br/>ipcRenderer.sendSync api (1 hop)`,
-        async_to_main: `asynchronous to main<br/>ipcRenderer.send api (1 hop)`,
-        async_to_other_renderer: `asynchronous to other renderer <br/>ipcRenderer.send api (2 hops)`,
-        async_send_to_other_renderer: `asynchronous to other renderer <br/>ipcRenderer.sendTo api (2 hops)`,
-        async_to_iframe: `asynchronous to iframe <br/>iframe.contentWindow.postMessage api (in-proc)`
+        sync_to_main: buildRouteCard({
+            title: 'Synchronous to main',
+            detail: 'ipcRenderer.sendSync API',
+            routes: [
+                { label: 'request', steps: ['Renderer', 'Main process'] },
+                { label: 'reply', steps: ['Main process', 'Renderer'] },
+            ],
+        }),
+        async_to_main: buildRouteCard({
+            title: 'Asynchronous to main',
+            detail: 'ipcRenderer.send API',
+            routes: [
+                { label: 'request', steps: ['Renderer', 'Main process'] },
+                { label: 'reply', steps: ['Main process', 'Renderer'] },
+            ],
+        }),
+        async_invoke_to_main: buildRouteCard({
+            title: 'Request-response to main',
+            detail: 'ipcRenderer.invoke API',
+            routes: [
+                { label: 'request', steps: ['Renderer', 'Main process'] },
+                { label: 'reply', steps: ['Main process', 'Renderer'] },
+            ],
+        }),
+        async_to_other_renderer: buildRouteCard({
+            title: 'Asynchronous to other renderer',
+            detail: 'ipcRenderer.send via main relay',
+            routes: [
+                { label: 'request', steps: ['Renderer', 'Main process', 'Background renderer'] },
+                { label: 'reply', steps: ['Background renderer', 'Main process', 'Renderer'] },
+            ],
+        }),
+        async_send_to_other_renderer: buildRouteCard({
+            title: 'Asynchronous to other renderer',
+            detail: 'main-routed relay API',
+            routes: [
+                { label: 'request', steps: ['Renderer', 'Main process', 'Background renderer'] },
+                { label: 'reply', steps: ['Background renderer', 'Main process', 'Renderer'] },
+            ],
+        }),
+        async_message_port_to_other_renderer: buildRouteCard({
+            title: 'Direct channel to other renderer',
+            detail: 'MessagePort API',
+            routes: [
+                { label: 'setup', steps: ['Renderer', 'Main process', 'Background renderer'] },
+                { label: 'messages', steps: ['Renderer', 'Background renderer'], arrow: '⇄' },
+            ],
+        }),
+        async_to_iframe: buildRouteCard({
+            title: 'Asynchronous to iframe',
+            detail: 'iframe.contentWindow.postMessage API',
+            routes: [
+                { label: 'request', steps: ['Renderer', 'iframe'] },
+                { label: 'reply', steps: ['iframe', 'Renderer'] },
+            ],
+        }),
     }
 
-    const table = document.getElementById('resultTable')
-    table.innerHTML = ''
+    const table = /** @type {HTMLTableElement | null} */ (document.getElementById('resultTable'))
+    if (!table) {
+        return
+    }
+
+    const tableEl = table
+
+    tableEl.innerHTML = ''
 
     function appendHeader() {
         const thead = document.createElement('thead')
@@ -49,9 +132,10 @@ function generateTableSync(numTests = [100, 1000, 10000]) {
 
         headRow.append(...headerCells)
         thead.append(headRow)
-        table.append(thead)
+        tableEl.append(thead)
     }
 
+    /** @param {keyof typeof tests} test */
     function createRow(test) {
         const desc = tests[test];
 
@@ -71,22 +155,24 @@ function generateTableSync(numTests = [100, 1000, 10000]) {
         descCell.innerHTML = desc
 
         row.append(...[descCell, ...spanCells])
-        table.append(row)
+        tableEl.append(row)
     }
 
     function appendRows() {
-        Object.keys(tests).forEach(createRow)
+        const testKeys = /** @type {(keyof typeof tests)[]} */ (Object.keys(tests))
+        testKeys.forEach(createRow)
     }
 
     appendHeader()
     appendRows()
 }
 
+/** @param {number[]} numTests */
 async function generateTable(numTests) {
     return new Promise((resolve) => {
         generateTableSync(numTests)
         setTimeout(() => {
-            resolve()
+            resolve(undefined)
         }, 100);
     })
 }

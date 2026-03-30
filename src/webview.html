@@ -13,13 +13,6 @@
 </head>
 
 <body>
-    <script>
-        const { ipcRenderer } = require('electron')
-
-        ipcRenderer.on('asynchronous-message', (event, arg) => {
-            ipcRenderer.sendToHost('asynchronous-reply', arg)
-        })
-    </script>
 </body>
 
 </html>

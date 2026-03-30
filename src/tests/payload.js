@@ -40,7 +40,7 @@ function getPayload(){
 function updatePayload() {
     const text = document.getElementById('payloadInput').value
     try {
-        json = JSON.parse(text)
+        const json = JSON.parse(text)
         setCurrentPayload(json)
         return true
     } catch (e) {

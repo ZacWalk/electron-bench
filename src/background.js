@@ -1,5 +1,7 @@
 const { ipcRenderer } = require('electron')
 
+let backgroundPort
+
 // console.log(ipcRenderer.sendSync('synchronous-message', 'ping')) // prints "pong"
 
 // ipcRenderer.on('asynchronous-reply', (event, arg) => {
@@ -8,12 +10,22 @@ const { ipcRenderer } = require('electron')
 
 // ipcRenderer.send('asynchronous-message', 'ping')
 
-let webContentsId = ipcRenderer.sendSync('get-id', 'main')
-
 ipcRenderer.on('asynchronous-message', (event, ...args) => {
-  event.sender.send('asynchronous-reply', ...args)
+  ipcRenderer.send('asynchronous-reply', ...args)
 })
 
 ipcRenderer.on('asynchronous-message-send-to', (event, ...args) => {
-  event.sender.sendTo(webContentsId, 'asynchronous-reply', ...args)
+  ipcRenderer.send('asynchronous-reply', ...args)
+})
+
+ipcRenderer.on('background-port', (event) => {
+  if (backgroundPort) {
+    backgroundPort.close()
+  }
+
+  backgroundPort = event.ports[0]
+  backgroundPort.onmessage = (portEvent) => {
+    backgroundPort.postMessage(portEvent.data)
+  }
+  backgroundPort.start()
 })

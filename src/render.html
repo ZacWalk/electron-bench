@@ -8,62 +8,52 @@
 
 <body>
 
-  <p>This Electron app tests various latencies for different IPC roundtrip scenarios.<strong>Time reported in total milliseconds.</strong></p>
-    <table class="tftable" id="resultTable"></table>
-    <button id="run_button">Run</button>
-  <p>
-    <input type="checkbox" name="stringify_json" id="stringify_json"/>
-    <label for="stringify_json">Stringify JSON before sending</label>
-  </p>
-  <p>
-    <input type="checkbox" name="show_percentage" id="show_percentage" checked/>
-    <label for="show_percentage">Show percentage values</label>
-  </p>
-<p title="How long we should wait between scheduling a new message in the queue. If this is 1, sending 10 000 messages will take approximately 10 seconds. Recommended value is between 0.3 to 1">
-    <label for="milisMultiplier">Wait time [ms]</label>
-    <input type="text" id="milisMultiplier" value="1"/>
-  </p>
-  <p>
-    Payload:
-    <textarea id="payloadInput"></textarea>
-  </p>
-  <p>
-    <p>
-      Node.js <span id="node-version"></span>,
-      Chromium <span id="chrome-version"></span>,
-      Electron <span id="electron-version"></span>.
-    </p>
-    <script>
-      // You can also require other files to run in this process
-      require('./render.js');
+  <main class="page_shell">
+    <header class="hero">
+      <p class="eyebrow">Electron IPC Benchmark</p>
+      <h1>Measure messaging costs across Electron communication paths</h1>
+      <p class="hero_copy">This app compares round-trip latency for synchronous IPC, async IPC, invoke-based request-response, renderer relays, MessagePorts, and in-process frame messaging. Results are reported as total milliseconds for each batch size.</p>
+      <p class="runtime_meta">
+        Node.js <span id="node-version"></span>,
+        Chromium <span id="chrome-version"></span>,
+        Electron <span id="electron-version"></span>.
+      </p>
+    </header>
 
-      window.generateTable()
+    <section class="panel controls_panel">
+    <div class="controls">
+      <button id="run_button">Run</button>
+      <span id="run_spinner" class="spinner" aria-hidden="true"></span>
+      <button id="cancel_button" disabled>Cancel</button>
+      <span id="run_status" class="status_text">Idle.</span>
+    </div>
+      <div class="settings_grid">
+        <p class="setting_row">
+          <input type="checkbox" name="stringify_json" id="stringify_json"/>
+          <label for="stringify_json">Stringify JSON before sending</label>
+        </p>
+        <p class="setting_row">
+          <input type="checkbox" name="show_percentage" id="show_percentage" checked/>
+          <label for="show_percentage">Show percentage values</label>
+        </p>
+        <p class="setting_block" title="How long we should wait between scheduling a new message in the queue. If this is 1, sending 10 000 messages will take approximately 10 seconds. Recommended value is between 0.3 to 1">
+          <label for="milisMultiplier">Wait time [ms]</label>
+          <input type="text" id="milisMultiplier" value="1"/>
+          <span class="field_help">This is the spacing between queued sends. Higher values reduce burst pressure and make long runs take longer. A value of 1 means 10,000 queued sends take roughly 10 seconds just to schedule.</span>
+        </p>
+      </div>
 
-      window.fillPayloadField()
+      <p class="setting_block payload_block">
+        <label for="payloadInput">Payload</label>
+        <textarea id="payloadInput"></textarea>
+        <span class="field_help">This JSON object is reused for every benchmark message. Larger or deeper payloads push the result toward serialization and structured-clone cost instead of transport cost.</span>
+      </p>
+    </section>
 
-      document.getElementById('run_button').addEventListener('click', () => {
-        setTimeout(() => run_bench(document.getElementById("stringify_json").checked))
-      });
-
-      var iframeSource = './iframe.html';
-      var iframe = document.createElement('iframe');
-      iframe.setAttribute('src', iframeSource);
-      iframe.setAttribute('id', 'the_iframe');
-      iframe.style.width = 10 + 'px';
-      iframe.style.height = 10 + 'px';
-      iframe.style.display = 'none'
-      document.body.appendChild(iframe);
-
-      var webviewSource = './webview.html';
-      var webview = document.createElement('webview');
-      webview.setAttribute('src', webviewSource);
-      webview.setAttribute('id', 'the_webview');
-      webview.style.width = 10 + 'px';
-      webview.style.height = 10 + 'px';
-      webview.style.display = 'none'
-      document.body.appendChild(webview);
-    </script>
-  </p>
+    <section class="panel table_panel">
+      <table class="tftable" id="resultTable"></table>
+    </section>
+  </main>
 
 </body>
 

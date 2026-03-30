@@ -1,15 +1,218 @@
-body { font-family: Calibri ; font-size:18px; }
+body {
+    margin: 0;
+    font-family: "Segoe UI", Calibri, sans-serif;
+    font-size: 18px;
+    color: #17333a;
+    background:
+        radial-gradient(circle at top left, #e5f3f2 0, #e5f3f2 18%, transparent 42%),
+        linear-gradient(180deg, #f6fbfb 0%, #edf5f5 100%);
+}
+
+.page_shell {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 32px 24px 40px;
+}
+
+.hero {
+    margin-bottom: 22px;
+    padding: 28px 30px;
+    border: 1px solid #c5dddd;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #ffffff 0%, #eef7f6 100%);
+    box-shadow: 0 16px 40px rgba(50, 92, 100, 0.08);
+}
+
+.eyebrow {
+    margin: 0 0 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #2f6a73;
+}
+
+.hero h1 {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.1;
+    color: #16343b;
+}
+
+.hero_copy {
+    max-width: 58rem;
+    margin: 0.85rem 0 0;
+    color: #35545a;
+    line-height: 1.5;
+}
+
+.runtime_meta {
+    margin: 1rem 0 0;
+    color: #234a52;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.panel {
+    border: 1px solid #c9dddd;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 30px rgba(50, 92, 100, 0.06);
+}
+
+.controls_panel {
+    padding: 22px 24px 24px;
+    margin-bottom: 18px;
+}
+
+.table_panel {
+    overflow: hidden;
+}
 
 .tftable {color:#333333;width:100%;border-width: 1px;border-color: #729ea5;border-collapse: collapse;}
-.tftable th {background-color:#acc8cc;border-width: 1px;padding: 8px;border-style: solid;border-color: #729ea5;text-align:left;}
+.tftable th {background-color:#acc8cc;border-width: 1px;padding: 10px 12px;border-style: solid;border-color: #729ea5;text-align:left;}
 .tftable tr {background-color:#d4e3e5;}
-.tftable td {border-width: 1px;padding: 8px;border-style: solid;border-color: #729ea5;}
+.tftable td {border-width: 1px;padding: 10px 12px;border-style: solid;border-color: #729ea5;vertical-align: top;}
 .tftable tr:hover {background-color:#ffffff;}
+.tftable td:first-child {
+    min-width: 360px;
+}
 p {
     margin: 0.1em
 }
 p.measures {
     font-size: 0.8em
+}
+
+.route_card {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.route_title {
+    font-weight: 700;
+    color: #16343b;
+}
+
+.route_detail {
+    font-size: 0.82rem;
+    color: #476970;
+}
+
+.route_flow {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.route_label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5a7b80;
+}
+
+.route_nodes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.route_node {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2rem;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid #8fb6bb;
+    border-radius: 999px;
+    background: #f7fcfc;
+    color: #1d444c;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.route_arrow {
+    color: #3f6a72;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75em;
+    margin: 0.5em 0 0.75em;
+}
+
+.settings_grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px 22px;
+    align-items: start;
+}
+
+.setting_row,
+.setting_block {
+    margin: 0;
+}
+
+.setting_row {
+    display: flex;
+    align-items: center;
+    gap: 0.55em;
+    min-height: 42px;
+}
+
+.setting_block label {
+    display: inline-block;
+    margin-bottom: 0.35rem;
+    font-weight: 600;
+    color: #204851;
+}
+
+.payload_block {
+    margin-top: 16px;
+}
+
+.spinner {
+    width: 1em;
+    height: 1em;
+    border: 0.2em solid #acc8cc;
+    border-top-color: #2f5f68;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+.spinner.is-active {
+    opacity: 1;
+    animation: spin 0.8s linear infinite;
+}
+
+.status_text {
+    color: #2f5f68;
+    font-size: 0.9em;
+}
+
+.field_help {
+    display: block;
+    max-width: 70rem;
+    color: #35545a;
+    font-size: 0.85em;
+    line-height: 1.35;
+    margin-top: 0.25em;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 #payloadInput {
@@ -18,9 +221,56 @@ p.measures {
     height: 20em;
     font-size: 0.8em;
     font-family: monospace;
-    padding: 10
+    padding: 10px;
+    border: 1px solid #a8c6cb;
+    border-radius: 10px;
+    background: #fbfefe;
+    box-sizing: border-box;
 }
+
+#milisMultiplier {
+    min-width: 100px;
+    padding: 8px 10px;
+    border: 1px solid #a8c6cb;
+    border-radius: 10px;
+    background: #fbfefe;
+}
+
 #run_button {
     font-size: 1.3em;
-    margin: 0.5em 0;
+}
+
+#cancel_button {
+    font-size: 1.1em;
+}
+
+#run_button,
+#cancel_button {
+    padding: 10px 16px;
+    border: 1px solid #5d8d95;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #f9ffff 0%, #dceeee 100%);
+    color: #16343b;
+    cursor: pointer;
+}
+
+#run_button:disabled,
+#cancel_button:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+@media (max-width: 720px) {
+    .page_shell {
+        padding: 20px 14px 28px;
+    }
+
+    .hero,
+    .controls_panel {
+        padding: 20px 18px;
+    }
+
+    .hero h1 {
+        font-size: 1.6rem;
+    }
 }
