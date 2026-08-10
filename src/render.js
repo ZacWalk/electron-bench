@@ -107,6 +107,7 @@ function raceWithTimeout(promise, timeoutMs) {
 }
 
 let isRunning = false
+let activeCounts = [...numTests]
 
 function getCheckboxValue(id) {
   const element = document.getElementById(id)
@@ -142,7 +143,7 @@ function getRunContext() {
       showPercentiles: getCheckboxValue('show_percentage'),
       payload: getPayloadMetadata(),
     },
-    counts: [...numTests],
+    counts: [...activeCounts],
     scenarios: scenarioDefinitions.map((scenario) => ({
       key: scenario.key,
       title: scenario.title,
@@ -198,7 +199,7 @@ function setRunState(running, statusText) {
 }
 
 function generateBenchmarkTable() {
-  generateTable(numTests)
+  generateTable(activeCounts)
 }
 
 function fillPayloadField() {
@@ -234,12 +235,12 @@ async function runBench() {
   const runContext = getRunContext()
 
   // Generate empty table again
-  await generateTable(numTests)
+  await generateTable(activeCounts)
 
   // Generate test functions bound to numbers
   const testBench = []
   tests.forEach((test) => {
-    numTests.forEach(num => {
+    activeCounts.forEach(num => {
       testBench.push({
         scenarioKey: test.key,
         key: `${test.key}_${num}`,
@@ -321,6 +322,11 @@ async function maybeRunAutomation() {
   }
 
   try {
+    if (Array.isArray(automationConfig.counts) && automationConfig.counts.length > 0) {
+      activeCounts = [...automationConfig.counts]
+      generateBenchmarkTable()
+    }
+
     const results = await runBenchFromUi()
     await ipcRenderer.invoke('automation:complete', results)
   } catch (error) {

@@ -12,8 +12,21 @@ const rendererPreload = path.join(__dirname, 'preload.js')
 const backgroundPreload = path.join(__dirname, 'background-preload.js')
 const webviewPreload = path.join(__dirname, 'webview-preload.js')
 
+const DEFAULT_AUTOMATION_TIMEOUT_MS = 10 * 60 * 1000
+
+function parseCounts(value) {
+  const counts = String(value || '')
+    .split(',')
+    .map((part) => Number.parseInt(part.trim(), 10))
+    .filter((count) => Number.isFinite(count) && count > 0)
+
+  return counts.length > 0 ? counts : null
+}
+
 function parseAutomationConfig(argv) {
   let outputPath = null
+  let counts = null
+  let timeoutMs = DEFAULT_AUTOMATION_TIMEOUT_MS
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
@@ -26,16 +39,46 @@ function parseAutomationConfig(argv) {
 
     if (argument.startsWith('--bench-output=')) {
       outputPath = argument.slice('--bench-output='.length)
+      continue
+    }
+
+    if (argument === '--bench-counts') {
+      counts = parseCounts(argv[index + 1])
+      index += 1
+      continue
+    }
+
+    if (argument.startsWith('--bench-counts=')) {
+      counts = parseCounts(argument.slice('--bench-counts='.length))
+      continue
+    }
+
+    if (argument.startsWith('--bench-timeout=')) {
+      const parsed = Number.parseInt(argument.slice('--bench-timeout='.length), 10)
+      if (Number.isFinite(parsed) && parsed > 0) {
+        timeoutMs = parsed
+      }
     }
   }
 
   return {
     enabled: Boolean(outputPath),
     outputPath: outputPath ? path.resolve(outputPath) : null,
+    counts,
+    timeoutMs,
   }
 }
 
 const automationConfig = parseAutomationConfig(process.argv)
+
+if (automationConfig.enabled) {
+  // Guarantees a non-zero exit instead of a hung CI job if the run stalls.
+  const watchdog = setTimeout(() => {
+    console.error(`Automated benchmark run exceeded ${automationConfig.timeoutMs} ms.`)
+    app.exit(1)
+  }, automationConfig.timeoutMs)
+  watchdog.unref()
+}
 
 async function writeAutomationResults(results) {
   if (!automationConfig.outputPath) {
@@ -190,6 +233,13 @@ ipcMain.handle('automation:fail', async (_event, error) => {
   exitAfterReply(1)
   return { ok: false }
 })
+
+if (automationConfig.enabled) {
+  app.on('render-process-gone', (_event, _webContents, details) => {
+    console.error('Renderer process gone during automated run.', details)
+    app.exit(1)
+  })
+}
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.

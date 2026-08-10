@@ -6,8 +6,12 @@
   "scripts": {
     "start": "electron .",
     "bench:run": "electron . --bench-output=bench-results/latest.json",
+    "bench:smoke": "electron . --bench-output=bench-results/ci.json --bench-counts=100 --bench-timeout=180000",
+    "bench:validate": "node scripts/validate-results.js --input bench-results/latest.json",
     "bench:update-docs": "node scripts/update-best-practices.js --input bench-results/latest.json",
-    "bench:refresh-docs": "npm run bench:run && npm run bench:update-docs"
+    "bench:refresh-docs": "npm run bench:run && npm run bench:update-docs",
+    "check": "node scripts/check-syntax.js",
+    "test": "npm run check && npm run bench:smoke && node scripts/validate-results.js --input bench-results/ci.json"
   },
   "repository": {
     "type": "git",

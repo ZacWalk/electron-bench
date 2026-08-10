@@ -1,4 +1,7 @@
 # electron-bench
+
+[![CI](https://github.com/ZacWalk/electron-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/ZacWalk/electron-bench/actions/workflows/ci.yml)
+
 This Electron app benchmarks round-trip latency across several Electron IPC routes and can also refresh its benchmark documentation from the command line.
 
 It currently compares these routes:
@@ -53,6 +56,21 @@ npm run bench:refresh-docs
 
 ```
 npm run bench:update-docs -- --input path/to/results.json
+```
+
+## Continuous integration
+
+Even though this is a GUI app, every push and pull request is validated by actually launching it. The workflow in `.github/workflows/ci.yml` runs on Linux, Windows, and macOS:
+
+1. `npm ci` installs dependencies.
+2. `npm run check` parses every file in `src/` and `scripts/`.
+3. `npm run bench:smoke` launches Electron with hidden windows and a reduced message count, then exits with the run's status code. On Linux this runs under `xvfb-run`, which provides a virtual display.
+4. `node scripts/validate-results.js` fails the build unless every scenario produced a complete, healthy result.
+
+Run the same gate locally with:
+
+```
+npm test
 ```
 
 ## Latest run summary
