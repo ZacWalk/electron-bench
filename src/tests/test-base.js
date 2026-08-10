@@ -48,13 +48,23 @@ function getSummaryPercentiles(measurements) {
     }
 }
 
+function beginMainLoopProbe() {
+    return ipcRenderer.invoke('mainloop:begin')
+}
+
+function endMainLoopProbe() {
+    return ipcRenderer.invoke('mainloop:end')
+}
 class TestBase {
 
-    /** @param {number} count @param {string} testKey @param {string=} ipcChannel */
-    constructor(count, testKey, ipcChannel) {
+    /** @param {number} count @param {string} testKey @param {string=} ipcChannel @param {{ payloadFactory?: () => any, transfer?: boolean, serial?: boolean }=} options */
+    constructor(count, testKey, ipcChannel, options) {
         this.count = count
         this.testKey = testKey
         this.ipcChannel = ipcChannel
+        this.payloadFactory = options && options.payloadFactory
+        this.transfer = Boolean(options && options.transfer)
+        this.serial = Boolean(options && options.serial)
         /** @type {Promise<void>[]} */
         this.promises = []
         this.measurements = new Map
@@ -150,9 +160,11 @@ class TestBase {
     }
 
     getPayload() {
-        const stringifyInput = /** @type {HTMLInputElement | null} */ (document.getElementById('stringify_json'))
-        const stringify = stringifyInput ? stringifyInput.checked : false
-        return stringify ? JSON.stringify(payload.getPayload()) : payload.getPayload()
+        if (this.payloadFactory) {
+            return this.payloadFactory()
+        }
+
+        return payload.getPayload()
     }
 
     /** @param {number=} i */
@@ -191,7 +203,63 @@ class TestBase {
         }
     }
 
+    // Every scenario is measured with the main-process lag probe running, so the
+    // cost a route imposes on the main process is reported next to its latency.
     async runTest() {
+        await beginMainLoopProbe()
+
+        let summary
+        let mainProcess = null
+
+        try {
+            summary = await this.runTestBody()
+        } finally {
+            mainProcess = await endMainLoopProbe()
+        }
+
+        return summary ? Object.assign(summary, { mainProcess }) : summary
+    }
+
+    // One message in flight at a time. Required whenever a round trip can outlast the
+    // send spacing, otherwise the measurement is queue depth rather than service time.
+    async runSerialTestBody() {
+        this.registerActiveTest()
+        this.start = performance.now()
+
+        try {
+            for (let i = 0; i < this.count; i++) {
+                this.throwIfCancelled()
+
+                const key = this.getKey(i)
+                const messagePayload = this.getPayload()
+
+                await new Promise((resolve) => {
+                    this.pendingPromiseResolvers.add(resolve)
+
+                    const wrappedResolve = () => {
+                        this.pendingPromiseResolvers.delete(resolve)
+                        resolve(undefined)
+                    }
+
+                    this.saveResolver(key, wrappedResolve)
+                    this.sendMessage(key, messagePayload)
+                })
+            }
+
+            this.throwIfCancelled()
+
+            return this.afterTest()
+        } finally {
+            this.cleanup()
+            this.unregisterActiveTest()
+        }
+    }
+
+    async runTestBody() {
+        if (this.serial) {
+            return this.runSerialTestBody()
+        }
+
         this.registerActiveTest()
         this.start = performance.now()
         try {
@@ -214,8 +282,10 @@ class TestBase {
                             resolve(undefined)
                         }
 
+                        // Built before saveResolver so payload construction is not timed.
+                        const messagePayload = this.getPayload()
                         this.saveResolver(this.getKey(i), wrappedResolve)
-                        this.sendMessage(this.getKey(i), this.getPayload())
+                        this.sendMessage(this.getKey(i), messagePayload)
                     }, i * this.milisMultiplier)
 
                     this.pendingTimeouts.add(timerId)
@@ -239,3 +309,6 @@ module.exports.requestCancellation = requestCancellation
 module.exports.isCancellationRequested = isCancellationRequested
 module.exports.createCancellationError = createCancellationError
 module.exports.isCancellationError = isCancellationError
+module.exports.getSummaryPercentiles = getSummaryPercentiles
+module.exports.beginMainLoopProbe = beginMainLoopProbe
+module.exports.endMainLoopProbe = endMainLoopProbe

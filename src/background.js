@@ -25,7 +25,15 @@ ipcRenderer.on('background-port', (event) => {
 
   backgroundPort = event.ports[0]
   backgroundPort.onmessage = (portEvent) => {
-    backgroundPort.postMessage(portEvent.data)
+    const data = portEvent.data
+
+    // Echo transferables back by transfer, otherwise the reply leg would be a copy.
+    if (data && data.transfer && data.payload instanceof ArrayBuffer) {
+      backgroundPort.postMessage(data, [data.payload])
+      return
+    }
+
+    backgroundPort.postMessage(data)
   }
   backgroundPort.start()
 })

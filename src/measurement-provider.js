@@ -26,6 +26,13 @@ class MeasurementProvider {
         return this._durations
     }
 
+    /** @param {number[]} durations */
+    static fromDurations(durations) {
+        const provider = Object.create(MeasurementProvider.prototype)
+        provider._durations = [...durations]
+        return provider
+    }
+
 }
 
 module.exports = MeasurementProvider

@@ -23,8 +23,10 @@
     "url": "https://github.com/ZacWalk/electron-bench/issues"
   },
   "homepage": "https://github.com/ZacWalk/electron-bench#readme",
-  "devDependencies": {
-    "electron": "^41.10.3",
+  "dependencies": {
     "percentile": "1.2.1"
+  },
+  "devDependencies": {
+    "electron": "^43.2.0"
   }
 }

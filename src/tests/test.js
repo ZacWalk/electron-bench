@@ -4,50 +4,43 @@ const {
 } = require('electron')
 
 const TestBase = require('./test-base')
+const MeasurementProvider = require('../measurement-provider')
+const payload = require('./payload')
+const { write_to_table } = require('../dom')
 
-function requestBackgroundPort() {
+/** @param {string} requestChannel @param {string} portChannel @param {string} errorChannel */
+function requestPort(requestChannel, portChannel, errorChannel) {
     return new Promise((resolve, reject) => {
-        ipcRenderer.once('background-port', (event) => {
+        ipcRenderer.once(portChannel, (event) => {
             resolve(event.ports[0])
         })
 
-        ipcRenderer.once('background-port-error', (_event, message) => {
+        ipcRenderer.once(errorChannel, (_event, message) => {
             reject(new Error(message))
         })
 
-        ipcRenderer.send('request-background-port')
+        ipcRenderer.send(requestChannel)
     })
+}
+
+function requestBackgroundPort() {
+    return requestPort('request-background-port', 'background-port', 'background-port-error')
+}
+
+function requestUtilityPort() {
+    return requestPort('request-utility-port', 'utility-port', 'utility-port-error')
 }
 
 class SyncToMainTest extends TestBase {
 
+    // Uses the same drip schedule as every other scenario; the reply is just
+    // synchronous, so it resolves inline instead of on an event.
     /** @param {string} key @param {any} payload */
     sendMessage(key, payload) {
-        ipcRenderer.sendSync(/** @type {string} */ (this.ipcChannel), key, payload)
+        const reply = ipcRenderer.sendSync(/** @type {string} */ (this.ipcChannel), key, payload)
+        const [replyKey, replyPayload] = Array.isArray(reply) ? reply : [key, undefined]
+        this.processReply(null, replyKey, replyPayload)
     }
-
-    async runTest() { // Async for consistant return type
-        this.registerActiveTest()
-        this.start = performance.now()
-        try {
-            for (let i = 0; i < this.count; i++) {
-                this.throwIfCancelled()
-
-                const key = this.getKey(i)
-                const startTime = performance.now();
-                this.sendMessage(key, this.getPayload())
-                const endTime = performance.now();
-                this.measurements.set(key, {startTime, endTime})
-            }
-
-            return this.afterTest()
-        } finally {
-            this.cleanup()
-            this.unregisterActiveTest()
-        }
-    } 
-
-    /** @param {number} count */
     static async run(count) {
         const test = new SyncToMainTest(count, 'sync_to_main', 'synchronous-message')
         return test.runTest()
@@ -63,7 +56,7 @@ class AsyncToMainTest extends TestBase {
 }
 
 class AsyncInvokeToMainTest extends TestBase {
-    async runTest() {
+    async runTestBody() {
         this.registerActiveTest()
         this.start = performance.now()
 
@@ -88,9 +81,10 @@ class AsyncInvokeToMainTest extends TestBase {
                             resolve(undefined)
                         }
 
+                        const messagePayload = this.getPayload()
                         this.saveResolver(key, wrappedResolve)
 
-                        ipcRenderer.invoke(/** @type {string} */ (this.ipcChannel), key, this.getPayload())
+                        ipcRenderer.invoke(/** @type {string} */ (this.ipcChannel), key, messagePayload)
                             .then(([replyKey, replyPayload]) => {
                                 this.processReply(null, replyKey, replyPayload)
                             })
@@ -139,9 +133,10 @@ class AsyncSendToOtherRendererTest extends TestBase {
 }
 
 class AsyncMessagePortToOtherRendererTest extends TestBase {
-    /** @param {number} count @param {string} testKey @param {string=} ipcChannel */
-    constructor(count, testKey, ipcChannel) {
-        super(count, testKey, ipcChannel)
+    /** @param {number} count @param {string} testKey @param {string=} ipcChannel @param {{ payloadFactory?: () => any, transfer?: boolean, portRequest?: () => Promise<MessagePort> }=} options */
+    constructor(count, testKey, ipcChannel, options) {
+        super(count, testKey, ipcChannel, options)
+        this.portRequest = (options && options.portRequest) || requestBackgroundPort
         this.processPortReply = this.processPortReply.bind(this)
     }
 
@@ -151,13 +146,13 @@ class AsyncMessagePortToOtherRendererTest extends TestBase {
         this.processReply(event, key, payload)
     }
 
-    async runTest() {
-        this.messagePort = await requestBackgroundPort()
+    async runTestBody() {
+        this.messagePort = await this.portRequest()
         this.messagePort.addEventListener('message', this.processPortReply)
         this.messagePort.start()
 
         try {
-            return await super.runTest()
+            return await super.runTestBody()
         } finally {
             this.messagePort.removeEventListener('message', this.processPortReply)
             this.messagePort.close()
@@ -166,9 +161,16 @@ class AsyncMessagePortToOtherRendererTest extends TestBase {
 
     /** @param {string} key @param {any} payload */
     sendMessage(key, payload) {
-        if (this.messagePort) {
-            this.messagePort.postMessage({ key, payload })
+        if (!this.messagePort) {
+            return
         }
+
+        if (this.transfer && payload instanceof ArrayBuffer) {
+            this.messagePort.postMessage({ key, payload, transfer: true }, [payload])
+            return
+        }
+
+        this.messagePort.postMessage({ key, payload })
     }
 
     /** @param {number} count */
@@ -178,10 +180,86 @@ class AsyncMessagePortToOtherRendererTest extends TestBase {
     }
 }
 
+class AsyncMessagePortToUtilityProcessTest extends AsyncMessagePortToOtherRendererTest {
+    /** @param {number} count */
+    static async run(count) {
+        const test = new AsyncMessagePortToUtilityProcessTest(count, 'async_message_port_to_utility_process', undefined, {
+            portRequest: requestUtilityPort,
+        })
+        return test.runTest()
+    }
+}
+
+class PayloadTest extends AsyncMessagePortToOtherRendererTest {
+    /** @param {number} count @param {string} testKey @param {string} profileKey @param {boolean=} transfer */
+    static async runProfile(count, testKey, profileKey, transfer) {
+        const test = new PayloadTest(count, testKey, undefined, {
+            payloadFactory: payload.getPayloadFactory(profileKey),
+            transfer: Boolean(transfer),
+            serial: true,
+        })
+        return test.runTest()
+    }
+}
+
+// Delegates the loop to a hidden window so the sandbox and contextBridge
+// configuration under test is the window's, not this renderer's.
+class RemoteWindowInvokeTest extends TestBase {
+    /** @param {number} count @param {string} testKey @param {'bridge' | 'direct'} target */
+    constructor(count, testKey, target) {
+        super(count, testKey)
+        this.target = target
+    }
+
+    async runTestBody() {
+        this.registerActiveTest()
+
+        try {
+            this.throwIfCancelled()
+
+            const result = await ipcRenderer.invoke('bench-window:run', {
+                target: this.target,
+                count: this.count,
+                spacingMs: this.milisMultiplier,
+                payload: this.getPayload(),
+            })
+
+            this.throwIfCancelled()
+
+            const measurements = MeasurementProvider.fromDurations(result.durations)
+
+            write_to_table(this.getKey(), result.totalMs)
+            this.calculateAndShowPvalues(this.getKey(), measurements)
+
+            return {
+                totalMs: result.totalMs,
+                averageMs: measurements.average(),
+                percentiles: TestBase.getSummaryPercentiles(measurements),
+                sampleCount: measurements.list().length,
+            }
+        } finally {
+            this.cleanup()
+            this.unregisterActiveTest()
+        }
+    }
+
+    /** @param {number} count */
+    static async runDirect(count) {
+        const test = new RemoteWindowInvokeTest(count, 'unsandboxed_direct_invoke_to_main', 'direct')
+        return test.runTest()
+    }
+
+    /** @param {number} count */
+    static async runBridge(count) {
+        const test = new RemoteWindowInvokeTest(count, 'sandboxed_bridge_invoke_to_main', 'bridge')
+        return test.runTest()
+    }
+}
+
 class AsyncToIframeTest extends TestBase {
-    async runTest() {
+    async runTestBody() {
         this.iframeEl = /** @type {HTMLIFrameElement | null} */ (document.getElementById('the_iframe'));
-        return super.runTest()
+        return super.runTestBody()
     }
 
     /** @param {string} key @param {any} payload */
@@ -205,5 +283,8 @@ module.exports = {
     AsyncToOtherRendererTest,
     AsyncSendToOtherRendererTest,
     AsyncMessagePortToOtherRendererTest,
-    AsyncToIframeTest
+    AsyncMessagePortToUtilityProcessTest,
+    AsyncToIframeTest,
+    PayloadTest,
+    RemoteWindowInvokeTest
 }

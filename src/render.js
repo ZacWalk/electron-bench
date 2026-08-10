@@ -7,9 +7,17 @@ const {
   AsyncToOtherRendererTest,
   AsyncSendToOtherRendererTest,
   AsyncMessagePortToOtherRendererTest,
-  AsyncToIframeTest
+  AsyncMessagePortToUtilityProcessTest,
+  AsyncToIframeTest,
+  PayloadTest,
+  RemoteWindowInvokeTest
 } = require('./tests/test')
-const { numTests, scenarioDefinitions } = require('./benchmark-config')
+const {
+  scenarioDefinitions,
+  resolveScenarioCounts,
+  resolveColumnCounts,
+  GROUP_PAYLOAD,
+} = require('./benchmark-config')
 const {
   generateTable,
   write_to_table,
@@ -17,54 +25,6 @@ const {
 
 const payload = require('./tests/payload')
 const TestBase = require('./tests/test-base')
-
-let resolvers = new Map
-
-function saveResolver(key, resolver) {
-  resolvers.set(key, resolver)
-}
-
-async function async_to_webview(count) {
-  let webviewEl = document.getElementById('the_webview');
-  // let start = performance.now();
-  // let promises = [];
-
-  // for (let i = 0; i < count; i++) {
-  //   promises.push( new Promise(function(resolve, reject) {
-  //     let key = "async_to_webview_" + count + "_" + i;
-  //     saveResolver(key, resolve);
-  //     webviewEl.send(key)
-  //   }));
-  // }
-
-  // await Promise.all(promises);
-  // const time = Math.round(performance.now() - start);
-  // write_to_table('async_to_webview_' + count, time);
-
-  let start = performance.now();
-  let promises = [];
-  let listener = event => {
-    // prints "ping"
-    resolvers.get(event.arg)();
-    resolvers.delete(event.arg);
-  }
-
-  webview.addEventListener('ipc-message', listener)
-
-  for (let i = 0; i < count; i++) {
-    promises.push( new Promise(function(resolve, reject) {
-      let key = "async_to_webview_" + count + "_" + i;
-      saveResolver(key, resolve);
-      webviewEl.send('asynchronous-message', key)
-    }));
-  }
-
-  await Promise.all(promises);
-  const time = Math.round(performance.now() - start);
-  write_to_table('async_to_webview_' + count, time);
-
-  webview.removeEventListener('ipc-message', listener)
-}
 
 // Define test functions that will be run, e.g. AsyncToMainTest.run(100)
 const testRunsByKey = {
@@ -74,15 +34,31 @@ const testRunsByKey = {
   async_to_other_renderer: AsyncToOtherRendererTest.run,
   async_send_to_other_renderer: AsyncSendToOtherRendererTest.run,
   async_message_port_to_other_renderer: AsyncMessagePortToOtherRendererTest.run,
+  async_message_port_to_utility_process: AsyncMessagePortToUtilityProcessTest.run,
   async_to_iframe: AsyncToIframeTest.run,
+  unsandboxed_direct_invoke_to_main: RemoteWindowInvokeTest.runDirect,
+  sandboxed_bridge_invoke_to_main: RemoteWindowInvokeTest.runBridge,
 }
+
+scenarioDefinitions
+  .filter((scenario) => scenario.payloadProfile)
+  .forEach((scenario) => {
+    testRunsByKey[scenario.key] = (count) => PayloadTest.runProfile(count, scenario.key, scenario.payloadProfile, scenario.transfer)
+  })
 
 const tests = scenarioDefinitions.map((scenario) => ({
   key: scenario.key,
   run: testRunsByKey[scenario.key],
 }))
 
-function getTestTimeoutMs(count) {
+const scenarioGroupByKey = new Map(scenarioDefinitions.map((scenario) => [scenario.key, scenario.group]))
+
+function getTestTimeoutMs(count, scenarioKey) {
+  // Serial scenarios cost one full round trip per message, not one send per interval.
+  if (scenarioGroupByKey.get(scenarioKey) === GROUP_PAYLOAD) {
+    return Math.max(60000, count * 1000)
+  }
+
   const millisInput = /** @type {HTMLInputElement | null} */ (document.getElementById('milisMultiplier'))
   const multiplier = parseFloat(millisInput ? millisInput.value : '1') || 1
   return Math.max(5000, Math.ceil(count * multiplier) + 15000)
@@ -107,7 +83,21 @@ function raceWithTimeout(promise, timeoutMs) {
 }
 
 let isRunning = false
-let activeCounts = [...numTests]
+let countOverride = null
+let scenarioCounts = new Map(resolveScenarioCounts(null).map((entry) => [entry.key, entry.counts]))
+let activeCounts = resolveColumnCounts(null)
+
+/** @param {number[] | null} overrideCounts */
+function applyCountOverride(overrideCounts) {
+  countOverride = overrideCounts
+  scenarioCounts = new Map(resolveScenarioCounts(overrideCounts).map((entry) => [entry.key, entry.counts]))
+  activeCounts = resolveColumnCounts(overrideCounts)
+}
+
+/** @param {string} key */
+function countsForScenario(key) {
+  return scenarioCounts.get(key) || []
+}
 
 function getCheckboxValue(id) {
   const element = document.getElementById(id)
@@ -139,16 +129,18 @@ function getRunContext() {
     },
     settings: {
       waitTimeMs: parseFloat(getTextValue('milisMultiplier', '1')) || 1,
-      stringifyJson: getCheckboxValue('stringify_json'),
       showPercentiles: getCheckboxValue('show_percentage'),
       payload: getPayloadMetadata(),
     },
     counts: [...activeCounts],
     scenarios: scenarioDefinitions.map((scenario) => ({
       key: scenario.key,
+      group: scenario.group,
       title: scenario.title,
       api: scenario.api,
       commentary: scenario.commentary,
+      counts: [...countsForScenario(scenario.key)],
+      payload: scenario.payloadProfile ? payload.describePayloadProfile(scenario.payloadProfile) : null,
       results: {},
     })),
   }
@@ -199,7 +191,7 @@ function setRunState(running, statusText) {
 }
 
 function generateBenchmarkTable() {
-  generateTable(activeCounts)
+  generateTable(activeCounts, scenarioCounts)
 }
 
 function fillPayloadField() {
@@ -235,12 +227,12 @@ async function runBench() {
   const runContext = getRunContext()
 
   // Generate empty table again
-  await generateTable(activeCounts)
+  await generateTable(activeCounts, scenarioCounts)
 
   // Generate test functions bound to numbers
   const testBench = []
   tests.forEach((test) => {
-    activeCounts.forEach(num => {
+    countsForScenario(test.key).forEach(num => {
       testBench.push({
         scenarioKey: test.key,
         key: `${test.key}_${num}`,
@@ -260,7 +252,7 @@ async function runBench() {
     setRunState(true, `Running ${test.key}...`)
 
     try {
-      const result = await raceWithTimeout(test.run(), getTestTimeoutMs(test.count))
+      const result = await raceWithTimeout(test.run(), getTestTimeoutMs(test.count, test.scenarioKey))
       const scenario = getScenarioEntry(runContext, test.scenarioKey)
       if (scenario) {
         scenario.results[String(test.count)] = Object.assign({ status: 'ok' }, result)
@@ -286,10 +278,6 @@ async function runBench() {
   }
 
   return runContext
-
-  // await async_to_webview(10)
-  // await async_to_webview(100)
-  // await async_to_webview(10000)
 }
 
 async function runBenchFromUi() {
@@ -323,7 +311,7 @@ async function maybeRunAutomation() {
 
   try {
     if (Array.isArray(automationConfig.counts) && automationConfig.counts.length > 0) {
-      activeCounts = [...automationConfig.counts]
+      applyCountOverride(automationConfig.counts)
       generateBenchmarkTable()
     }
 

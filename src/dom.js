@@ -1,4 +1,5 @@
 //@ts-check
+const { scenarioDefinitions, groupDefinitions } = require('./benchmark-config')
 
 /** @param {string} where @param {string | number} what */
 function write_to_table(where, what) {
@@ -50,67 +51,8 @@ function buildRouteCard(config) {
     return `<div class="route_card"><div class="route_title">${config.title}</div><div class="route_detail">${config.detail}</div>${routeLines}</div>`
 }
 
-/** @param {number[]} [numTests] */
-function generateTableSync(numTests = [100, 1000, 10000]) {
-    const tests = {
-        sync_to_main: buildRouteCard({
-            title: 'Synchronous to main',
-            detail: 'ipcRenderer.sendSync API',
-            routes: [
-                { label: 'request', steps: ['Renderer', 'Main process'] },
-                { label: 'reply', steps: ['Main process', 'Renderer'] },
-            ],
-        }),
-        async_to_main: buildRouteCard({
-            title: 'Asynchronous to main',
-            detail: 'ipcRenderer.send API',
-            routes: [
-                { label: 'request', steps: ['Renderer', 'Main process'] },
-                { label: 'reply', steps: ['Main process', 'Renderer'] },
-            ],
-        }),
-        async_invoke_to_main: buildRouteCard({
-            title: 'Request-response to main',
-            detail: 'ipcRenderer.invoke API',
-            routes: [
-                { label: 'request', steps: ['Renderer', 'Main process'] },
-                { label: 'reply', steps: ['Main process', 'Renderer'] },
-            ],
-        }),
-        async_to_other_renderer: buildRouteCard({
-            title: 'Asynchronous to other renderer',
-            detail: 'ipcRenderer.send via main relay',
-            routes: [
-                { label: 'request', steps: ['Renderer', 'Main process', 'Background renderer'] },
-                { label: 'reply', steps: ['Background renderer', 'Main process', 'Renderer'] },
-            ],
-        }),
-        async_send_to_other_renderer: buildRouteCard({
-            title: 'Asynchronous to other renderer',
-            detail: 'main-routed relay API',
-            routes: [
-                { label: 'request', steps: ['Renderer', 'Main process', 'Background renderer'] },
-                { label: 'reply', steps: ['Background renderer', 'Main process', 'Renderer'] },
-            ],
-        }),
-        async_message_port_to_other_renderer: buildRouteCard({
-            title: 'Direct channel to other renderer',
-            detail: 'MessagePort API',
-            routes: [
-                { label: 'setup', steps: ['Renderer', 'Main process', 'Background renderer'] },
-                { label: 'messages', steps: ['Renderer', 'Background renderer'], arrow: '⇄' },
-            ],
-        }),
-        async_to_iframe: buildRouteCard({
-            title: 'Asynchronous to iframe',
-            detail: 'iframe.contentWindow.postMessage API',
-            routes: [
-                { label: 'request', steps: ['Renderer', 'iframe'] },
-                { label: 'reply', steps: ['iframe', 'Renderer'] },
-            ],
-        }),
-    }
-
+/** @param {number[]} [columnCounts] @param {Map<string, number[]>} [scenarioCounts] */
+function generateTableSync(columnCounts = [100, 1000, 10000], scenarioCounts) {
     const table = /** @type {HTMLTableElement | null} */ (document.getElementById('resultTable'))
     if (!table) {
         return
@@ -124,7 +66,7 @@ function generateTableSync(numTests = [100, 1000, 10000]) {
         const thead = document.createElement('thead')
         const headRow = document.createElement('tr')
 
-        const headerCells = ['', ...numTests].map((num) => {
+        const headerCells = ['', ...columnCounts].map((num) => {
             const th = document.createElement('th')
             th.append(num.toString(), num ? " messages" : '')
             return th
@@ -135,42 +77,64 @@ function generateTableSync(numTests = [100, 1000, 10000]) {
         tableEl.append(thead)
     }
 
-    /** @param {keyof typeof tests} test */
-    function createRow(test) {
-        const desc = tests[test];
-
+    /** @param {string} title */
+    function appendGroupHeader(title) {
         const row = document.createElement('tr')
-        const spans = numTests.map(num => {
-            const span = document.createElement('span')
-            span.setAttribute('id', `${test}_${num}`)
-            return span
-        })
-        const spanCells = spans.map(span => {
+        row.className = 'group_row'
+
+        const cell = document.createElement('td')
+        cell.setAttribute('colspan', String(columnCounts.length + 1))
+        cell.textContent = title
+
+        row.append(cell)
+        tableEl.append(row)
+    }
+
+    /** @param {typeof scenarioDefinitions[number]} scenario */
+    function createRow(scenario) {
+        const counts = (scenarioCounts && scenarioCounts.get(scenario.key)) || scenario.counts
+        const row = document.createElement('tr')
+
+        const descCell = document.createElement('td')
+        descCell.innerHTML = buildRouteCard(scenario.route)
+
+        const valueCells = columnCounts.map((num) => {
             const td = document.createElement('td')
-            td.append(span)
+
+            if (counts.includes(num)) {
+                const span = document.createElement('span')
+                span.setAttribute('id', `${scenario.key}_${num}`)
+                td.append(span)
+            }
+
             return td
         })
 
-        const descCell = document.createElement('td')
-        descCell.innerHTML = desc
-
-        row.append(...[descCell, ...spanCells])
+        row.append(...[descCell, ...valueCells])
         tableEl.append(row)
     }
 
     function appendRows() {
-        const testKeys = /** @type {(keyof typeof tests)[]} */ (Object.keys(tests))
-        testKeys.forEach(createRow)
+        groupDefinitions.forEach((group) => {
+            const scenarios = scenarioDefinitions.filter((scenario) => scenario.group === group.key)
+
+            if (scenarios.length === 0) {
+                return
+            }
+
+            appendGroupHeader(group.title)
+            scenarios.forEach(createRow)
+        })
     }
 
     appendHeader()
     appendRows()
 }
 
-/** @param {number[]} numTests */
-async function generateTable(numTests) {
+/** @param {number[]} columnCounts @param {Map<string, number[]>} [scenarioCounts] */
+async function generateTable(columnCounts, scenarioCounts) {
     return new Promise((resolve) => {
-        generateTableSync(numTests)
+        generateTableSync(columnCounts, scenarioCounts)
         setTimeout(() => {
             resolve(undefined)
         }, 100);

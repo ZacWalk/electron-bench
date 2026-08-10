@@ -51,7 +51,11 @@ function validate(results) {
       return
     }
 
-    counts.forEach((count) => {
+    const scenarioCounts = Array.isArray(scenario.counts) && scenario.counts.length > 0
+      ? scenario.counts
+      : counts
+
+    scenarioCounts.forEach((count) => {
       const entry = scenario.results ? scenario.results[String(count)] : null
 
       if (!entry) {
@@ -70,6 +74,10 @@ function validate(results) {
 
       if (entry.sampleCount !== count) {
         errors.push(`Scenario "${definition.key}" at ${count} messages recorded ${entry.sampleCount} samples.`)
+      }
+
+      if (!entry.mainProcess || !Number.isFinite(entry.mainProcess.cpuMs)) {
+        errors.push(`Scenario "${definition.key}" at ${count} messages has no main-process cost measurement.`)
       }
     })
   })

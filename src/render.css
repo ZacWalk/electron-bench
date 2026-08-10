@@ -77,6 +77,15 @@ body {
 .tftable td:first-child {
     min-width: 360px;
 }
+.tftable tr.group_row, .tftable tr.group_row:hover {
+    background-color: #acc8cc;
+}
+.tftable tr.group_row td {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.85em;
+}
 p {
     margin: 0.1em
 }

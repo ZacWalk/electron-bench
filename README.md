@@ -2,9 +2,13 @@
 
 [![CI](https://github.com/ZacWalk/electron-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/ZacWalk/electron-bench/actions/workflows/ci.yml)
 
-This Electron app benchmarks round-trip latency across several Electron IPC routes and can also refresh its benchmark documentation from the command line.
+This Electron app benchmarks Electron's messaging routes and can also refresh its benchmark documentation from the command line.
 
-It currently compares these routes:
+For every scenario it reports **round-trip latency (p50/p99)** and **main-process CPU consumed**. The second number is usually the one that matters: nearly every route lands within about 1 ms per message, but they differ by more than 60x in how much work they push onto the main process.
+
+It measures three things.
+
+**Transport routes** — the same payload and schedule on every route:
 
 * `ipcRenderer.sendSync` to the main process
 * `ipcRenderer.send` to the main process
@@ -12,7 +16,23 @@ It currently compares these routes:
 * renderer-to-renderer messaging relayed through the main process
 * renderer-to-renderer messaging through the app's main-routed relay API
 * renderer-to-renderer messaging over `MessagePort`
+* renderer-to-`utilityProcess` messaging over `MessagePort`
 * `iframe.contentWindow.postMessage` within the same renderer process
+
+**Sandbox and contextBridge cost** — an identical `invoke` loop run two ways, so the difference is only the configuration:
+
+* a sandboxed renderer (`sandbox: true`) calling through `contextBridge` from the page main world
+* an unsandboxed preload (`sandbox: false`) calling `ipcRenderer` directly
+
+**Payload size and shape** — transport held constant on `MessagePort`, only the payload changes: 1 KB / 64 KB / 1 MB JSON, a deeply nested object, and a 1 MB `ArrayBuffer` sent by copy versus by transfer list.
+
+## Method notes
+
+* Transport and bridge scenarios schedule one message every "wait time" interval, so roughly one request is in flight at a time
+* Payload scenarios send strictly one message at a time and wait for each round trip. A 1 MB payload takes far longer than the send spacing, so scheduling it on a timer would measure queue depth rather than cost
+* Every scenario uses the same send schedule as the others in its group, including `sendSync`, so the routes are directly comparable
+* Payload construction happens before the clock starts, so it is not counted as transport cost
+* Main-process CPU is sampled from the OS, which accounts CPU in ~16 ms ticks on Windows. Small values round to 0 and only become meaningful at the larger message counts
 
 ## Run the app
 
@@ -75,38 +95,46 @@ npm test
 
 ## Latest run summary
 
-The following numbers come from the latest automated local run on March 30, 2026.
+The following numbers come from the latest automated local run on August 10, 2026.
 
-Runtime: Node.js `24.14.0`, Chromium `146.0.7680.166`, Electron `41.1.0`
+Runtime: Node.js `24.18.0`, Chromium `150.0.7871.129`, Electron `43.2.0`
 
-Run settings: wait time `1 ms`, stringify JSON `off`, payload size `333 bytes`
+Run settings: wait time `1 ms`, default payload `333 bytes`
 
-| Scenario | 100 messages | 1000 messages | 10000 messages | Notes |
-| --- | ---: | ---: | ---: | --- |
-| Synchronous to main (`sendSync`) | 17 ms | 137 ms | 1378 ms | Lowest raw latency, but blocks the main process |
-| Asynchronous to main (`send`) | 102 ms | 1003 ms | 10022 ms | Solid async baseline when you already have a reply channel |
-| Request-response to main (`invoke`) | 104 ms | 1008 ms | 10019 ms | Convenient API with slightly more request-response overhead |
-| Async to other renderer via main relay | 106 ms | 1002 ms | 10013 ms | Most expensive cross-renderer route in this run |
-| Async to other renderer via main-routed relay API | 103 ms | 1012 ms | 10023 ms | Similar total time to the older relay, still worth measuring separately |
-| Direct channel to other renderer (`MessagePort`) | 102 ms | 1008 ms | 10017 ms | Fastest non-blocking renderer-to-renderer route |
-| Async to iframe (`postMessage`) | 104 ms | 1013 ms | 10017 ms | Strong in-process baseline |
+### Transport routes, 10,000 messages
 
-If you care about per-message latency instead of total run time, the same run showed these average round-trip values for 10,000 messages:
+| Scenario | Latency p50 | Latency p99 | Main-process CPU |
+| --- | ---: | ---: | ---: |
+| Synchronous to main (`sendSync`) | 0.2 ms | 0.6 ms | 1281 ms |
+| Asynchronous to main (`send`) | 0.7 ms | 2.5 ms | 1062 ms |
+| Request-response to main (`invoke`) | 0.4 ms | 1.6 ms | 1672 ms |
+| Async to other renderer via main relay | 1.7 ms | 4.8 ms | 2015 ms |
+| Async to other renderer via main-routed relay API | 1.5 ms | 3.5 ms | 1454 ms |
+| Direct channel to other renderer (`MessagePort`) | 0.5 ms | 1.0 ms | 375 ms |
+| Direct channel to utility process (`utilityProcess`) | 0.5 ms | 1.0 ms | 140 ms |
+| Async to iframe (`postMessage`) | 0.6 ms | 1.1 ms | 62 ms |
 
-* `sendSync` to main: `0.136 ms`
-* `send` to main: `0.599 ms`
-* `invoke` to main: `0.542 ms`
-* other renderer via main relay: `1.267 ms`
-* other renderer via main-routed relay API: `1.275 ms`
-* other renderer via `MessagePort`: `0.435 ms`
-* iframe via `postMessage`: `0.463 ms`
+### Payload sweep, 100 messages over `MessagePort`, sent one at a time
+
+| Payload | Latency p50 | Latency p99 |
+| --- | ---: | ---: |
+| JSON, 1 KB | 0.2 ms | 0.4 ms |
+| JSON, 64 KB | 1.5 ms | 5.4 ms |
+| JSON, 1 MB | 21.5 ms | 24.1 ms |
+| Deeply nested object | 0.4 ms | 0.6 ms |
+| ArrayBuffer 1 MB, copied | 4.1 ms | 9.8 ms |
+| ArrayBuffer 1 MB, transferred | 3.2 ms | 5.4 ms |
 
 Practical summary from this run:
 
-* `sendSync` remains fastest in raw latency, but that comes from blocking behavior
-* `MessagePort` is the fastest non-blocking route tested here
-* `iframe.postMessage` is very close to `MessagePort` when the traffic can stay in one renderer process
-* both main-mediated renderer-to-renderer routes are materially slower than `MessagePort` and iframe messaging in this app
+* Latency barely separates the transports. Main-process CPU separates them by more than 20x
+* `sendSync` has the lowest latency and one of the highest main-process CPU costs. The number that makes people reach for it is not the number that matters
+* `MessagePort` and `utilityProcess` channels keep main-process CPU low, because main is only involved in setup
+* A sandboxed renderer going through `contextBridge` came within 0.1 ms of an unsandboxed preload calling `ipcRenderer` directly, so performance is a weak argument for disabling the sandbox
+* Payload size swamps transport choice: 1 MB of JSON costs around a hundred times what 1 KB costs on the same route
+* Transferring a 1 MB `ArrayBuffer` instead of copying it was about 1.3x cheaper, and the gap widens as buffers grow
+
+These are single-run numbers from one machine. The ordering between routes is stable, but the exact multiples move between runs, particularly the CPU figures.
 
 
 # IPC Best practices document
