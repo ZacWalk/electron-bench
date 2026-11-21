@@ -44,6 +44,9 @@ jobs:
       - name: Syntax check
         run: npm run check
 
+      - name: Unit tests
+        run: npm run test:unit
+
       - name: Install Xvfb dependencies
         if: runner.os == 'Linux'
         run: |
@@ -60,6 +63,14 @@ jobs:
 
       - name: Validate benchmark results
         run: node scripts/validate-results.js --input bench-results/ci.json
+
+      - name: Test desktop controls (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run test:desktop -- --no-sandbox
+
+      - name: Test desktop controls (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: npm run test:desktop
 
       - name: Upload benchmark results
         if: always()

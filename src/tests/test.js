@@ -1,290 +1,179 @@
-//@ts-check
-const {
-    ipcRenderer
-} = require('electron')
-
+const { ipcRenderer } = require('electron')
+const { randomUUID } = require('node:crypto')
 const TestBase = require('./test-base')
-const MeasurementProvider = require('../measurement-provider')
-const payload = require('./payload')
-const { write_to_table } = require('../dom')
+const { getPayloadFactory, getPayload } = require('./payload')
 
-/** @param {string} requestChannel @param {string} portChannel @param {string} errorChannel */
-function requestPort(requestChannel, portChannel, errorChannel) {
+function requestPort(kind, signal) {
     return new Promise((resolve, reject) => {
-        ipcRenderer.once(portChannel, (event) => {
-            resolve(event.ports[0])
-        })
+        const id = randomUUID()
+        const channel = `${kind}-port`
+        const finish = (error, port) => {
+            ipcRenderer.removeListener(channel, onReply)
+            signal.removeEventListener('abort', onAbort)
+            if (error) reject(error)
+            else resolve(port)
+        }
+        const onReply = (event, replyId, error) => {
+            if (replyId !== id) {
+                event.ports?.[0]?.close()
+                return
+            }
+            const port = event.ports?.[0]
+            finish(error || !port ? new Error(error || 'Benchmark port was not returned.') : null, port)
+        }
+        const onAbort = () => {
+            ipcRenderer.send('cancel-port-request', id)
+            finish(signal.reason)
+        }
 
-        ipcRenderer.once(errorChannel, (_event, message) => {
-            reject(new Error(message))
-        })
-
-        ipcRenderer.send(requestChannel)
+        ipcRenderer.on(channel, onReply)
+        signal.addEventListener('abort', onAbort, { once: true })
+        ipcRenderer.send(`request-${channel}`, id)
     })
 }
 
-function requestBackgroundPort() {
-    return requestPort('request-background-port', 'background-port', 'background-port-error')
-}
-
-function requestUtilityPort() {
-    return requestPort('request-utility-port', 'utility-port', 'utility-port-error')
-}
-
 class SyncToMainTest extends TestBase {
-
-    // Uses the same drip schedule as every other scenario; the reply is just
-    // synchronous, so it resolves inline instead of on an event.
-    /** @param {string} key @param {any} payload */
-    sendMessage(key, payload) {
-        const reply = ipcRenderer.sendSync(/** @type {string} */ (this.ipcChannel), key, payload)
-        const [replyKey, replyPayload] = Array.isArray(reply) ? reply : [key, undefined]
-        this.processReply(null, replyKey, replyPayload)
-    }
-    static async run(count) {
-        const test = new SyncToMainTest(count, 'sync_to_main', 'synchronous-message')
-        return test.runTest()
+    roundTrip(key, payload) {
+        const reply = ipcRenderer.sendSync(this.channel, key, payload)
+        if (reply?.[0] !== key) throw new Error('Unexpected synchronous reply.')
     }
 }
 
-class AsyncToMainTest extends TestBase {
-    /** @param {number} count */
-    static async run(count) {
-        const test = new AsyncToMainTest(count, 'async_to_main', 'asynchronous-message')
-        return test.runTest()
+class InvokeToMainTest extends TestBase {
+    async roundTrip(key, payload) {
+        const reply = await ipcRenderer.invoke(this.channel, key, payload)
+        if (reply?.[0] !== key) throw new Error('Unexpected invoke reply.')
     }
 }
 
-class AsyncInvokeToMainTest extends TestBase {
-    async runTestBody() {
-        this.registerActiveTest()
-        this.start = performance.now()
-
-        try {
-            for (let i = 0; i < this.count; i++) {
-                this.throwIfCancelled()
-                this.promises.push(new Promise((resolve, reject) => {
-                    this.pendingPromiseResolvers.add(resolve)
-
-                    const timerId = setTimeout(() => {
-                        this.pendingTimeouts.delete(timerId)
-
-                        if (TestBase.isCancellationRequested()) {
-                            this.pendingPromiseResolvers.delete(resolve)
-                            resolve(undefined)
-                            return
-                        }
-
-                        const key = this.getKey(i)
-                        const wrappedResolve = () => {
-                            this.pendingPromiseResolvers.delete(resolve)
-                            resolve(undefined)
-                        }
-
-                        const messagePayload = this.getPayload()
-                        this.saveResolver(key, wrappedResolve)
-
-                        ipcRenderer.invoke(/** @type {string} */ (this.ipcChannel), key, messagePayload)
-                            .then(([replyKey, replyPayload]) => {
-                                this.processReply(null, replyKey, replyPayload)
-                            })
-                            .catch(reject)
-                    }, i * this.milisMultiplier)
-
-                    this.pendingTimeouts.add(timerId)
-                }))
-            }
-
-            await Promise.all(this.promises)
-            this.throwIfCancelled()
-            return this.afterTest()
-        } finally {
-            this.cleanup()
-            this.unregisterActiveTest()
-        }
-    }
-
-    /** @param {number} count */
-    static async run(count) {
-        const test = new AsyncInvokeToMainTest(count, 'async_invoke_to_main', 'invoke-message')
-        return test.runTest()
-    }
-}
-
-class AsyncToOtherRendererTest extends TestBase {
-    /** @param {number} count */
-    static async run(count) {
-        const test = new AsyncToOtherRendererTest(count, 'async_to_other_renderer', 'asynchronous-message-proxy')
-        return test.runTest()
-    }
-}
-
-class AsyncSendToOtherRendererTest extends TestBase {
-    /** @param {string} key @param {any} payload */
-    sendMessage(key, payload) {
-        ipcRenderer.send(/** @type {string} */ (this.ipcChannel), key, payload)
-    }
-
-    /** @param {number} count */
-    static async run(count) {
-        const test = new AsyncSendToOtherRendererTest(count, 'async_send_to_other_renderer', 'asynchronous-message-send-to')
-        return test.runTest()
-    }
-}
-
-class AsyncMessagePortToOtherRendererTest extends TestBase {
-    /** @param {number} count @param {string} testKey @param {string=} ipcChannel @param {{ payloadFactory?: () => any, transfer?: boolean, portRequest?: () => Promise<MessagePort> }=} options */
-    constructor(count, testKey, ipcChannel, options) {
-        super(count, testKey, ipcChannel, options)
-        this.portRequest = (options && options.portRequest) || requestBackgroundPort
-        this.processPortReply = this.processPortReply.bind(this)
-    }
-
-    /** @param {MessageEvent<{ key: string, payload: any }>} event */
-    processPortReply(event) {
-        const { key, payload } = event.data
-        this.processReply(event, key, payload)
-    }
-
-    async runTestBody() {
-        this.messagePort = await this.portRequest()
-        this.messagePort.addEventListener('message', this.processPortReply)
-        this.messagePort.start()
-
-        try {
-            return await super.runTestBody()
-        } finally {
-            this.messagePort.removeEventListener('message', this.processPortReply)
-            this.messagePort.close()
-        }
-    }
-
-    /** @param {string} key @param {any} payload */
-    sendMessage(key, payload) {
-        if (!this.messagePort) {
-            return
-        }
-
-        if (this.transfer && payload instanceof ArrayBuffer) {
-            this.messagePort.postMessage({ key, payload, transfer: true }, [payload])
-            return
-        }
-
-        this.messagePort.postMessage({ key, payload })
-    }
-
-    /** @param {number} count */
-    static async run(count) {
-        const test = new AsyncMessagePortToOtherRendererTest(count, 'async_message_port_to_other_renderer')
-        return test.runTest()
-    }
-}
-
-class AsyncMessagePortToUtilityProcessTest extends AsyncMessagePortToOtherRendererTest {
-    /** @param {number} count */
-    static async run(count) {
-        const test = new AsyncMessagePortToUtilityProcessTest(count, 'async_message_port_to_utility_process', undefined, {
-            portRequest: requestUtilityPort,
-        })
-        return test.runTest()
-    }
-}
-
-class PayloadTest extends AsyncMessagePortToOtherRendererTest {
-    /** @param {number} count @param {string} testKey @param {string} profileKey @param {boolean=} transfer */
-    static async runProfile(count, testKey, profileKey, transfer) {
-        const test = new PayloadTest(count, testKey, undefined, {
-            payloadFactory: payload.getPayloadFactory(profileKey),
-            transfer: Boolean(transfer),
-            serial: true,
-        })
-        return test.runTest()
-    }
-}
-
-// Delegates the loop to a hidden window so the sandbox and contextBridge
-// configuration under test is the window's, not this renderer's.
-class RemoteWindowInvokeTest extends TestBase {
-    /** @param {number} count @param {string} testKey @param {'bridge' | 'direct'} target */
-    constructor(count, testKey, target) {
-        super(count, testKey)
-        this.target = target
-    }
-
-    async runTestBody() {
-        this.registerActiveTest()
-
-        try {
-            this.throwIfCancelled()
-
-            const result = await ipcRenderer.invoke('bench-window:run', {
-                target: this.target,
-                count: this.count,
-                spacingMs: this.milisMultiplier,
-                payload: this.getPayload(),
+class BackgroundRelayTest extends TestBase {
+    async prepare(signal) {
+        await new Promise((resolve, reject) => {
+            const onAbort = () => reject(signal.reason)
+            signal.addEventListener('abort', onAbort, { once: true })
+            ipcRenderer.invoke('background:ready').then(resolve, reject).finally(() => {
+                signal.removeEventListener('abort', onAbort)
             })
+        })
+        signal.throwIfAborted()
+        super.prepare()
+    }
+}
 
-            this.throwIfCancelled()
-
-            const measurements = MeasurementProvider.fromDurations(result.durations)
-
-            write_to_table(this.getKey(), result.totalMs)
-            this.calculateAndShowPvalues(this.getKey(), measurements)
-
-            return {
-                totalMs: result.totalMs,
-                averageMs: measurements.average(),
-                percentiles: TestBase.getSummaryPercentiles(measurements),
-                sampleCount: measurements.list().length,
+class MessagePortTest extends TestBase {
+    async prepare(signal) {
+        this.port = await requestPort(this.channel, signal)
+        await new Promise((resolve, reject) => {
+            const onAbort = () => {
+                this.port.onmessage = null
+                reject(signal.reason)
             }
-        } finally {
-            this.cleanup()
-            this.unregisterActiveTest()
+            if (signal.aborted) return onAbort()
+            signal.addEventListener('abort', onAbort, { once: true })
+            this.port.onmessage = (event) => {
+                if (!event.data?.ready) return
+                signal.removeEventListener('abort', onAbort)
+                resolve()
+            }
+            this.port.start()
+        })
+        this.port.onmessage = (event) => this.receiveReply(event, event.data?.key)
+    }
+
+    cleanup() {
+        if (this.port) {
+            this.port.onmessage = null
+            this.port.close()
         }
     }
 
-    /** @param {number} count */
-    static async runDirect(count) {
-        const test = new RemoteWindowInvokeTest(count, 'unsandboxed_direct_invoke_to_main', 'direct')
-        return test.runTest()
-    }
-
-    /** @param {number} count */
-    static async runBridge(count) {
-        const test = new RemoteWindowInvokeTest(count, 'sandboxed_bridge_invoke_to_main', 'bridge')
-        return test.runTest()
-    }
-}
-
-class AsyncToIframeTest extends TestBase {
-    async runTestBody() {
-        this.iframeEl = /** @type {HTMLIFrameElement | null} */ (document.getElementById('the_iframe'));
-        return super.runTestBody()
-    }
-
-    /** @param {string} key @param {any} payload */
     sendMessage(key, payload) {
-        if (this.iframeEl && this.iframeEl.contentWindow) {
-            this.iframeEl.contentWindow.postMessage({ key, payload }, '*')
+        if (this.options.transfer) {
+            this.port.postMessage({ key, payload, transfer: true }, [payload])
+        } else {
+            this.port.postMessage({ key, payload })
         }
     }
+}
 
-    /** @param {number} count */
-    static async run(count) {
-        const test = new AsyncToIframeTest(count, 'async_to_iframe')
-        return test.runTest()
+class IframeTest extends TestBase {
+    async prepare(signal) {
+        const frame = this.options.iframe
+        if (!frame.dataset.ready) {
+            await new Promise((resolve, reject) => {
+                const onAbort = () => {
+                    frame.removeEventListener('load', onLoad)
+                    reject(signal.reason)
+                }
+                const onLoad = () => {
+                    signal.removeEventListener('abort', onAbort)
+                    resolve()
+                }
+                signal.addEventListener('abort', onAbort, { once: true })
+                frame.addEventListener('load', onLoad, { once: true })
+            })
+        }
+        this.iframe = frame.contentWindow
+        this.onMessage = (event) => {
+            if (event.source === this.iframe) this.receiveReply(event, event.data?.key)
+        }
+        window.addEventListener('message', this.onMessage)
+    }
+
+    cleanup() {
+        if (this.onMessage) window.removeEventListener('message', this.onMessage)
+    }
+
+    sendMessage(key, payload) {
+        this.iframe.postMessage({ key, payload }, '*')
     }
 }
 
-module.exports = {
-    SyncToMainTest,
-    AsyncToMainTest,
-    AsyncInvokeToMainTest,
-    AsyncToOtherRendererTest,
-    AsyncSendToOtherRendererTest,
-    AsyncMessagePortToOtherRendererTest,
-    AsyncMessagePortToUtilityProcessTest,
-    AsyncToIframeTest,
-    PayloadTest,
-    RemoteWindowInvokeTest
+class RemoteWindowInvokeTest extends TestBase {
+    prepare() {}
+    cleanup() {}
+
+    async measure(id, signal) {
+        const cancel = () => ipcRenderer.send('bench-window:cancel', id)
+        signal.addEventListener('abort', cancel, { once: true })
+        try {
+            return await ipcRenderer.invoke('bench-window:run', {
+                id,
+                target: this.channel,
+                count: this.count,
+                spacingMs: this.options.spacingMs,
+                payload: getPayload(),
+            })
+        } finally {
+            signal.removeEventListener('abort', cancel)
+        }
+    }
 }
+
+const routes = {
+    sync_to_main: [SyncToMainTest, 'synchronous-message'],
+    async_to_main: [TestBase, 'asynchronous-message'],
+    async_invoke_to_main: [InvokeToMainTest, 'invoke-message'],
+    async_to_other_renderer: [BackgroundRelayTest, 'asynchronous-message-proxy'],
+    async_send_to_other_renderer: [BackgroundRelayTest, 'asynchronous-message-send-to'],
+    async_message_port_to_other_renderer: [MessagePortTest, 'background'],
+    async_message_port_to_utility_process: [MessagePortTest, 'utility'],
+    async_to_iframe: [IframeTest],
+    unsandboxed_direct_invoke_to_main: [RemoteWindowInvokeTest, 'direct'],
+    sandboxed_bridge_invoke_to_main: [RemoteWindowInvokeTest, 'bridge'],
+}
+
+function runScenario(scenario, count, options) {
+    if (scenario.payloadProfile) {
+        return new MessagePortTest(count, scenario.key, 'background', {
+            ...options,
+            serial: true,
+            transfer: scenario.transfer,
+            payloadFactory: getPayloadFactory(scenario.payloadProfile),
+        }).runTest()
+    }
+    const [Test, channel] = routes[scenario.key]
+    return new Test(count, scenario.key, channel, options).runTest()
+}
+
+module.exports = { runScenario }

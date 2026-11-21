@@ -2,9 +2,12 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const { scenarioDefinitions, groupDefinitions, GROUP_TRANSPORT } = require('../src/benchmark-config')
+const { renderSummaryChart } = require('../src/summary-chart')
+const { validate } = require('./validate-results')
 
 const workspaceRoot = path.resolve(__dirname, '..')
 const bestPracticesPath = path.join(workspaceRoot, 'best-practices.md')
+const chartPath = path.join(workspaceRoot, 'docs', 'benchmark-summary.svg')
 const defaultInputPath = path.join(workspaceRoot, 'bench-results', 'latest.json')
 const startMarker = '<!-- benchmark-data:start -->'
 const endMarker = '<!-- benchmark-data:end -->'
@@ -171,7 +174,7 @@ function buildDynamicTakeaways(runData) {
     const slowest = byLatency[byLatency.length - 1]
 
     lines.push(`* Fastest transport at ${fastest.count} messages was ${fastest.scenario.title} (${fastest.scenario.api}) at a p50 of ${fastest.result.percentiles.p50.toFixed(3)} ms.`)
-    lines.push(`* Slowest transport was ${slowest.scenario.title} (${slowest.scenario.api}) at a p50 of ${slowest.result.percentiles.p50.toFixed(3)} ms, which is what extra cross-process hops cost.`)
+    lines.push(`* Slowest transport was ${slowest.scenario.title} (${slowest.scenario.api}) at a p50 of ${slowest.result.percentiles.p50.toFixed(3)} ms.`)
 
     const sync = transportEntries.find((entry) => entry.scenario.key === 'sync_to_main')
     const cheapestCpu = [...transportEntries]
@@ -182,7 +185,7 @@ function buildDynamicTakeaways(runData) {
       const ratio = cheapestCpu.result.mainProcess.cpuMs > 0
         ? sync.result.mainProcess.cpuMs / cheapestCpu.result.mainProcess.cpuMs
         : 0
-      lines.push(`* sendSync looks fastest on latency and is one of the most expensive routes in practice: ${sync.result.percentiles.p50.toFixed(3)} ms p50, but ${sync.result.mainProcess.cpuMs.toFixed(0)} ms of main-process CPU at ${sync.count} messages${ratio > 0 ? `, ${ratio.toFixed(0)}x the cheapest route measured here` : ''}. That CPU is spent on the thread every window depends on.`)
+      lines.push(`* sendSync measured ${sync.result.percentiles.p50.toFixed(3)} ms p50 and used ${sync.result.mainProcess.cpuMs.toFixed(0)} ms of main-process CPU at ${sync.count} messages${ratio > 1 ? ` (${ratio.toFixed(1)}× the lowest measured CPU cost)` : ''}. The sending renderer blocks until main replies.`)
     }
 
     const byLag = [...transportEntries]
@@ -202,7 +205,8 @@ function buildDynamicTakeaways(runData) {
   const bridgeResult = bridgeScenario && bridgeCount !== null ? bridgeScenario.results[String(bridgeCount)] : null
   const directResult = directScenario && bridgeCount !== null ? directScenario.results[String(bridgeCount)] : null
 
-  if (bridgeResult && directResult && bridgeResult.status === 'ok' && directResult.status === 'ok') {
+  if (!runData.settings.chromiumSandboxDisabled && bridgeResult && directResult &&
+      bridgeResult.status === 'ok' && directResult.status === 'ok') {
     const bridgeP50 = bridgeResult.percentiles.p50
     const directP50 = directResult.percentiles.p50
     const delta = bridgeP50 - directP50
@@ -224,8 +228,7 @@ function buildDynamicTakeaways(runData) {
   if (copyResult && transferResult && copyResult.status === 'ok' && transferResult.status === 'ok') {
     const copyP50 = copyResult.percentiles.p50
     const transferP50 = transferResult.percentiles.p50
-    const ratio = transferP50 > 0 ? copyP50 / transferP50 : 0
-    lines.push(`* Moving a 1 MB ArrayBuffer with a transfer list measured a p50 of ${transferP50.toFixed(3)} ms against ${copyP50.toFixed(3)} ms when copied, or ${ratio.toFixed(1)}x cheaper. The bytes still cross the process boundary either way; the transfer list removes the copies on each side, so the gap widens as buffers grow.`)
+    lines.push(`* At 1 MB, transferring the ArrayBuffer measured a p50 of ${transferP50.toFixed(3)} ms versus ${copyP50.toFixed(3)} ms for copying it.`)
   }
 
   if (lines.length === 0) {
@@ -274,11 +277,18 @@ function buildGeneratedSection(runData, inputPath) {
     '',
     `Runtime: Node.js ${runData.runtime.node}, Chromium ${runData.runtime.chrome}, Electron ${runData.runtime.electron}.`,
     '',
-    `Run settings: send spacing ${runData.settings.waitTimeMs} ms, default payload ${payloadSummary}.`,
+    `Run settings: send spacing ${runData.settings.waitTimeMs} ms, default payload ${payloadSummary}.` +
+      (runData.settings.chromiumSandboxDisabled ? ' Chromium sandboxing was disabled; the bridge results compare call paths only.' : ''),
     '',
-    'Transport and bridge scenarios schedule one message every send-spacing interval. Payload scenarios send strictly one at a time, waiting for each round trip, because a large payload takes far longer to complete than the send spacing and would otherwise be measuring queue depth. Both measure unloaded latency, not saturated throughput.',
+    'Transport and bridge scenarios schedule sends at the configured spacing without waiting for the previous reply; slow replies can overlap. Payload scenarios wait for each reply. These are round-trip measurements, not a saturated throughput test.',
     '',
-    'Main-process CPU is sampled from the OS, which accounts CPU in ~16 ms ticks on Windows. Small values round to 0 and only become meaningful at the larger message counts.',
+    'Main-process CPU is sampled for the whole process, not just the IPC handler. Small readings can round to zero due to OS accounting granularity.',
+    '',
+    '### Summary chart',
+    '',
+    '![Benchmark summary: median and p99 round-trip latency and main-process CPU by scenario](./docs/benchmark-summary.svg)',
+    '',
+    'Each group uses its largest shared batch size and its own scales. Compare rows within a group; see the tables below for every batch size.',
     '',
     groupSections,
     '',
@@ -304,15 +314,25 @@ function updateBestPractices(runData, inputPath) {
 
   const replacement = buildGeneratedSection(runData, inputPath)
   const updated = `${markdown.slice(0, startIndex)}${replacement}${markdown.slice(endIndex + endMarker.length)}`
+  const svg = renderSummaryChart(runData)
 
+  fs.mkdirSync(path.dirname(chartPath), { recursive: true })
+  fs.writeFileSync(chartPath, svg, 'utf8')
   fs.writeFileSync(bestPracticesPath, updated, 'utf8')
 }
 
 function main() {
-  const { inputPath } = parseArgs(process.argv.slice(2))
-  const runData = readJson(inputPath)
-  updateBestPractices(runData, inputPath)
-  console.log(`Updated best-practices.md using ${path.relative(workspaceRoot, inputPath).replace(/\\/g, '/')}`)
+  try {
+    const { inputPath } = parseArgs(process.argv.slice(2))
+    const runData = readJson(inputPath)
+    const errors = validate(runData)
+    if (errors.length) throw new Error(errors.join('\n'))
+    updateBestPractices(runData, inputPath)
+    console.log(`Updated best-practices.md and docs/benchmark-summary.svg using ${path.relative(workspaceRoot, inputPath).replace(/\\/g, '/')}`)
+  } catch (error) {
+    console.error(`Could not update best practices: ${error.message}`)
+    process.exitCode = 1
+  }
 }
 
 main()

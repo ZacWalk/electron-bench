@@ -2,7 +2,7 @@
 // Gate script: fails when a benchmark run did not produce a complete, healthy result set.
 const fs = require('node:fs')
 const path = require('node:path')
-const { scenarioDefinitions } = require('../src/benchmark-config')
+const { scenarioDefinitions, resolveScenarioCounts, resolveColumnCounts, GROUP_TRANSPORT, numTests } = require('../src/benchmark-config')
 
 function parseArgs(argv) {
   let input = 'bench-results/latest.json'
@@ -35,13 +35,27 @@ function validate(results) {
     errors.push('Missing runtime.electron in results.')
   }
 
-  const counts = Array.isArray(results.counts) ? results.counts : []
-  if (counts.length === 0) {
-    errors.push('Missing counts array in results.')
-  }
-
   const scenarios = Array.isArray(results.scenarios) ? results.scenarios : []
-  const scenariosByKey = new Map(scenarios.map((scenario) => [scenario.key, scenario]))
+  const scenariosByKey = new Map(scenarios.filter(Boolean).map((scenario) => [scenario.key, scenario]))
+  if (scenarios.length !== scenarioDefinitions.length || scenariosByKey.size !== scenarioDefinitions.length) {
+    errors.push('Expected one result entry per benchmark scenario.')
+  }
+  // Older result files did not store the requested override separately.
+  const requestedCounts = results.requestedCounts === undefined
+    ? scenariosByKey.get(scenarioDefinitions.find((definition) => definition.group === GROUP_TRANSPORT).key)?.counts
+    : results.requestedCounts
+  if (requestedCounts != null && (!Array.isArray(requestedCounts) || !requestedCounts.length ||
+      new Set(requestedCounts).size !== requestedCounts.length ||
+      requestedCounts.some((count) => !Number.isInteger(count) || count < 1 || count > numTests.at(-1)))) {
+    return [...errors, 'Invalid requested message counts.']
+  }
+  const sameCounts = (actual, expected) => Array.isArray(actual) && actual.length === expected.length
+    && new Set(actual).size === expected.length && expected.every((count) => actual.includes(count))
+  if (!sameCounts(results.counts, resolveColumnCounts(requestedCounts))) {
+    errors.push('Result columns do not match the requested message counts.')
+  }
+  const expected = new Map(resolveScenarioCounts(requestedCounts).map(({ key, counts }) => [key, counts]))
+  const isTiming = (value) => Number.isFinite(value) && value >= 0
 
   scenarioDefinitions.forEach((definition) => {
     const scenario = scenariosByKey.get(definition.key)
@@ -51,9 +65,10 @@ function validate(results) {
       return
     }
 
-    const scenarioCounts = Array.isArray(scenario.counts) && scenario.counts.length > 0
-      ? scenario.counts
-      : counts
+    const scenarioCounts = expected.get(definition.key)
+    if (!sameCounts(scenario.counts, scenarioCounts)) {
+      errors.push(`Scenario "${definition.key}" does not list the expected counts.`)
+    }
 
     scenarioCounts.forEach((count) => {
       const entry = scenario.results ? scenario.results[String(count)] : null
@@ -68,15 +83,19 @@ function validate(results) {
         return
       }
 
-      if (!Number.isFinite(entry.totalMs)) {
-        errors.push(`Scenario "${definition.key}" at ${count} messages has no numeric totalMs.`)
+      if (!isTiming(entry.totalMs) || !isTiming(entry.averageMs)) {
+        errors.push(`Scenario "${definition.key}" at ${count} messages has invalid total or average latency.`)
+      }
+      const percentiles = [1, 25, 50, 75, 90, 99, 100].map((p) => entry.percentiles?.[`p${p}`])
+      if (percentiles.some((value, index) => !isTiming(value) || (index > 0 && value < percentiles[index - 1]))) {
+        errors.push(`Scenario "${definition.key}" at ${count} messages has invalid round-trip percentiles.`)
       }
 
       if (entry.sampleCount !== count) {
         errors.push(`Scenario "${definition.key}" at ${count} messages recorded ${entry.sampleCount} samples.`)
       }
 
-      if (!entry.mainProcess || !Number.isFinite(entry.mainProcess.cpuMs)) {
+      if (!isTiming(entry.mainProcess?.cpuMs) || !isTiming(entry.mainProcess?.wallMs)) {
         errors.push(`Scenario "${definition.key}" at ${count} messages has no main-process cost measurement.`)
       }
     })
@@ -116,4 +135,5 @@ function main() {
   console.log(`Benchmark validation passed: ${results.scenarios.length} scenarios at counts [${counts}] on Electron ${results.runtime.electron}.`)
 }
 
-main()
+if (require.main === module) main()
+module.exports = { validate }

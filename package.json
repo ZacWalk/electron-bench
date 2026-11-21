@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "An Electron app to perform a few benchmarks.",
   "main": "src/main.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "start": "electron .",
     "bench:run": "electron . --bench-output=bench-results/latest.json",
@@ -11,7 +14,9 @@
     "bench:update-docs": "node scripts/update-best-practices.js --input bench-results/latest.json",
     "bench:refresh-docs": "npm run bench:run && npm run bench:update-docs",
     "check": "node scripts/check-syntax.js",
-    "test": "npm run check && npm run bench:smoke && node scripts/validate-results.js --input bench-results/ci.json"
+    "test:unit": "node --test scripts/benchmark.test.js",
+    "test:desktop": "electron scripts/test-desktop.js",
+    "test": "npm run check && npm run test:unit && npm run bench:smoke"
   },
   "repository": {
     "type": "git",
@@ -24,9 +29,9 @@
   },
   "homepage": "https://github.com/ZacWalk/electron-bench#readme",
   "dependencies": {
-    "percentile": "1.2.1"
+    "percentile": "1.6.0"
   },
   "devDependencies": {
-    "electron": "^43.2.0"
+    "electron": "^45.3.2"
   }
 }

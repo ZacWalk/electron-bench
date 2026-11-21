@@ -1,364 +1,183 @@
-//@ts-check
 const { ipcRenderer } = require('electron')
-const {
-  SyncToMainTest,
-  AsyncToMainTest,
-  AsyncInvokeToMainTest,
-  AsyncToOtherRendererTest,
-  AsyncSendToOtherRendererTest,
-  AsyncMessagePortToOtherRendererTest,
-  AsyncMessagePortToUtilityProcessTest,
-  AsyncToIframeTest,
-  PayloadTest,
-  RemoteWindowInvokeTest
-} = require('./tests/test')
-const {
-  scenarioDefinitions,
-  resolveScenarioCounts,
-  resolveColumnCounts,
-  GROUP_PAYLOAD,
-} = require('./benchmark-config')
-const {
-  generateTable,
-  write_to_table,
-} = require('./dom')
+const { scenarioDefinitions, resolveScenarioCounts, resolveColumnCounts, GROUP_PAYLOAD } = require('./benchmark-config')
+const { generateTable, writeResult, writeFailure } = require('./dom')
+const { renderSummaryChart } = require('./summary-chart')
+const { runScenario } = require('./tests/test')
+const { getPayload, updatePayload, describePayloadProfile } = require('./tests/payload')
 
-const payload = require('./tests/payload')
-const TestBase = require('./tests/test-base')
-
-// Define test functions that will be run, e.g. AsyncToMainTest.run(100)
-const testRunsByKey = {
-  sync_to_main: SyncToMainTest.run,
-  async_to_main: AsyncToMainTest.run,
-  async_invoke_to_main: AsyncInvokeToMainTest.run,
-  async_to_other_renderer: AsyncToOtherRendererTest.run,
-  async_send_to_other_renderer: AsyncSendToOtherRendererTest.run,
-  async_message_port_to_other_renderer: AsyncMessagePortToOtherRendererTest.run,
-  async_message_port_to_utility_process: AsyncMessagePortToUtilityProcessTest.run,
-  async_to_iframe: AsyncToIframeTest.run,
-  unsandboxed_direct_invoke_to_main: RemoteWindowInvokeTest.runDirect,
-  sandboxed_bridge_invoke_to_main: RemoteWindowInvokeTest.runBridge,
+function getTimeoutMs(scenario, count, spacingMs) {
+  return scenario.group === GROUP_PAYLOAD ? Math.max(60000, count * 1000) : Math.ceil(count * spacingMs) + 15000
 }
 
-scenarioDefinitions
-  .filter((scenario) => scenario.payloadProfile)
-  .forEach((scenario) => {
-    testRunsByKey[scenario.key] = (count) => PayloadTest.runProfile(count, scenario.key, scenario.payloadProfile, scenario.transfer)
-  })
-
-const tests = scenarioDefinitions.map((scenario) => ({
-  key: scenario.key,
-  run: testRunsByKey[scenario.key],
-}))
-
-const scenarioGroupByKey = new Map(scenarioDefinitions.map((scenario) => [scenario.key, scenario.group]))
-
-function getTestTimeoutMs(count, scenarioKey) {
-  // Serial scenarios cost one full round trip per message, not one send per interval.
-  if (scenarioGroupByKey.get(scenarioKey) === GROUP_PAYLOAD) {
-    return Math.max(60000, count * 1000)
-  }
-
-  const millisInput = /** @type {HTMLInputElement | null} */ (document.getElementById('milisMultiplier'))
-  const multiplier = parseFloat(millisInput ? millisInput.value : '1') || 1
-  return Math.max(5000, Math.ceil(count * multiplier) + 15000)
-}
-
-function raceWithTimeout(promise, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const timerId = setTimeout(() => {
-      reject(new Error('Benchmark timed out'))
-    }, timeoutMs)
-
-    promise
-      .then((value) => {
-        clearTimeout(timerId)
-        resolve(value)
-      })
-      .catch((error) => {
-        clearTimeout(timerId)
-        reject(error)
-      })
-  })
-}
-
-let isRunning = false
-let countOverride = null
-let scenarioCounts = new Map(resolveScenarioCounts(null).map((entry) => [entry.key, entry.counts]))
-let activeCounts = resolveColumnCounts(null)
-
-/** @param {number[] | null} overrideCounts */
-function applyCountOverride(overrideCounts) {
-  countOverride = overrideCounts
-  scenarioCounts = new Map(resolveScenarioCounts(overrideCounts).map((entry) => [entry.key, entry.counts]))
-  activeCounts = resolveColumnCounts(overrideCounts)
-}
-
-/** @param {string} key */
-function countsForScenario(key) {
-  return scenarioCounts.get(key) || []
-}
-
-function getCheckboxValue(id) {
-  const element = document.getElementById(id)
-  return element instanceof HTMLInputElement ? element.checked : false
-}
-
-function getTextValue(id, fallback = '') {
-  const element = document.getElementById(id)
-  return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement ? element.value : fallback
-}
-
-function getPayloadMetadata() {
-  const currentPayload = payload.getPayload()
-  const payloadJson = JSON.stringify(currentPayload)
-
-  return {
-    bytes: Buffer.byteLength(payloadJson, 'utf8'),
-    topLevelKeys: currentPayload && typeof currentPayload === 'object' && !Array.isArray(currentPayload) ? Object.keys(currentPayload).length : null,
-  }
-}
-
-function getRunContext() {
+function makeRunContext(override, spacingMs, showPercentiles, chromiumSandboxDisabled) {
+  const payload = getPayload()
+  const counts = new Map(resolveScenarioCounts(override).map((entry) => [entry.key, entry.counts]))
   return {
     generatedAt: new Date().toISOString(),
-    runtime: {
-      node: process.versions.node,
-      chrome: process.versions.chrome,
-      electron: process.versions.electron,
-    },
+    runtime: { node: process.versions.node, chrome: process.versions.chrome, electron: process.versions.electron },
     settings: {
-      waitTimeMs: parseFloat(getTextValue('milisMultiplier', '1')) || 1,
-      showPercentiles: getCheckboxValue('show_percentage'),
-      payload: getPayloadMetadata(),
+      waitTimeMs: spacingMs,
+      showPercentiles,
+      chromiumSandboxDisabled,
+      payload: {
+        bytes: Buffer.byteLength(JSON.stringify(payload), 'utf8'),
+        topLevelKeys: payload && typeof payload === 'object' && !Array.isArray(payload) ? Object.keys(payload).length : null,
+      },
     },
-    counts: [...activeCounts],
-    scenarios: scenarioDefinitions.map((scenario) => ({
-      key: scenario.key,
-      group: scenario.group,
-      title: scenario.title,
-      api: scenario.api,
-      commentary: scenario.commentary,
-      counts: [...countsForScenario(scenario.key)],
-      payload: scenario.payloadProfile ? payload.describePayloadProfile(scenario.payloadProfile) : null,
+    requestedCounts: override,
+    counts: resolveColumnCounts(override),
+    scenarios: scenarioDefinitions.map(({ key, group, title, api, commentary, payloadProfile }) => ({
+      key, group, title, api, commentary,
+      counts: counts.get(key),
+      payload: payloadProfile ? describePayloadProfile(payloadProfile) : null,
       results: {},
     })),
   }
 }
 
-function getScenarioEntry(runContext, key) {
-  return runContext.scenarios.find((scenario) => scenario.key === key) || null
-}
+window.addEventListener('DOMContentLoaded', async () => {
+  const byId = (id) => document.getElementById(id)
+  const runButton = byId('run_button')
+  const cancelButton = byId('cancel_button')
+  const status = byId('run_status')
+  const spinner = byId('run_spinner')
+  const mode = byId('run_mode')
+  const spacing = byId('milisMultiplier')
+  const payload = byId('payloadInput')
+  const details = byId('show_percentage')
+  const table = byId('resultTable')
+  const summary = byId('resultSummary')
+  const chart = byId('resultChart')
+  const iframe = document.createElement('iframe')
+  let controller
+  let chromiumSandboxDisabled
 
-function serializeAutomationError(error) {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-    }
+  function resetTable(override) {
+    summary.hidden = true
+    chart.replaceChildren()
+    generateTable(resolveColumnCounts(override), new Map(resolveScenarioCounts(override).map(({ key, counts }) => [key, counts])))
   }
 
-  return {
-    name: 'UnknownError',
-    message: String(error),
-  }
-}
-
-function setRunState(running, statusText) {
-  isRunning = running
-
-  const runButton = document.getElementById('run_button')
-  const cancelButton = document.getElementById('cancel_button')
-  const spinner = document.getElementById('run_spinner')
-  const status = document.getElementById('run_status')
-
-  if (runButton instanceof HTMLButtonElement) {
-    runButton.disabled = running
+  function updateDetails() {
+    table.classList.toggle('hide_details', !details.checked)
   }
 
-  if (cancelButton instanceof HTMLButtonElement) {
+  function setRunning(running) {
+    for (const control of [runButton, mode, spacing, payload]) control.disabled = running
     cancelButton.disabled = !running
-  }
-
-  if (spinner) {
     spinner.classList.toggle('is-active', running)
   }
 
-  if (status) {
-    status.textContent = statusText
-  }
-}
-
-function generateBenchmarkTable() {
-  generateTable(activeCounts, scenarioCounts)
-}
-
-function fillPayloadField() {
-  const payloadString = JSON.stringify(payload.getPayload(), undefined, '    ')
-  document.getElementById('payloadInput').value = payloadString
-}
-
-function attachHiddenTargets() {
-  const iframe = document.createElement('iframe')
-  iframe.setAttribute('src', './iframe.html')
-  iframe.setAttribute('id', 'the_iframe')
-  iframe.style.width = '10px'
-  iframe.style.height = '10px'
-  iframe.style.display = 'none'
-  document.body.appendChild(iframe)
-
-  const webview = document.createElement('webview')
-  webview.setAttribute('src', './webview.html')
-  webview.setAttribute('id', 'the_webview')
-  webview.style.width = '10px'
-  webview.style.height = '10px'
-  webview.style.display = 'none'
-  document.body.appendChild(webview)
-}
-
-async function runBench() {
-  TestBase.beginTestRun()
-
-  if (!payload.updatePayload()) {
-    throw new Error('Payload JSON is invalid.')
-  }
-
-  const runContext = getRunContext()
-
-  // Generate empty table again
-  await generateTable(activeCounts, scenarioCounts)
-
-  // Generate test functions bound to numbers
-  const testBench = []
-  tests.forEach((test) => {
-    countsForScenario(test.key).forEach(num => {
-      testBench.push({
-        scenarioKey: test.key,
-        key: `${test.key}_${num}`,
-        run: test.run.bind(this, num),
-        count: num,
-      })
-    })
-  })
-
-  // run the tests
-  for (let i = 0; i < testBench.length; i++) {
-    const test = testBench[i];
-    if (TestBase.isCancellationRequested()) {
-      throw TestBase.createCancellationError()
+  async function run(override) {
+    if (controller) return
+    spacing.removeAttribute('aria-invalid')
+    payload.removeAttribute('aria-invalid')
+    const spacingMs = spacing.valueAsNumber
+    if (!Number.isFinite(spacingMs) || spacingMs <= 0 || spacingMs > 10) {
+      spacing.setAttribute('aria-invalid', 'true')
+      spacing.focus()
+      status.textContent = 'Enter a send interval greater than 0 and at most 10 ms.'
+      throw new Error(status.textContent)
     }
-
-    setRunState(true, `Running ${test.key}...`)
-
     try {
-      const result = await raceWithTimeout(test.run(), getTestTimeoutMs(test.count, test.scenarioKey))
-      const scenario = getScenarioEntry(runContext, test.scenarioKey)
-      if (scenario) {
-        scenario.results[String(test.count)] = Object.assign({ status: 'ok' }, result)
-      }
+      updatePayload(payload.value)
     } catch (error) {
-      const scenario = getScenarioEntry(runContext, test.scenarioKey)
-      const timedOut = error instanceof Error && error.message === 'Benchmark timed out'
-
-      if (scenario) {
-        scenario.results[String(test.count)] = {
-          status: timedOut ? 'timed_out' : 'failed',
-          error: error instanceof Error ? error.message : String(error),
-        }
-      }
-
-      if (TestBase.isCancellationError(error)) {
-        throw error
-      }
-
-      console.error(`Benchmark failed: ${test.key}`, error)
-      write_to_table(test.key, timedOut ? 'Timed out' : 'Failed')
-    }
-  }
-
-  return runContext
-}
-
-async function runBenchFromUi() {
-  if (isRunning) {
-    return null
-  }
-
-  setRunState(true, 'Running benchmarks...')
-
-  try {
-    const results = await runBench()
-    setRunState(false, 'Finished.')
-    return results
-  } catch (error) {
-    if (TestBase.isCancellationError(error)) {
-      setRunState(false, 'Cancelled.')
+      payload.setAttribute('aria-invalid', 'true')
+      payload.focus()
+      status.textContent = `Invalid payload JSON: ${error.message}`
       throw error
     }
 
-    console.error(error)
-    setRunState(false, error instanceof Error ? error.message : 'Benchmark run failed.')
-    throw error
+    controller = new AbortController()
+    const { signal } = controller
+    setRunning(true)
+    status.textContent = 'Preparing benchmarks…'
+    let completed = 0
+    let failures = 0
+    try {
+      const results = makeRunContext(override, spacingMs, details.checked, chromiumSandboxDisabled)
+      const total = results.scenarios.reduce((sum, entry) => sum + entry.counts.length, 0)
+      resetTable(override)
+      for (const [index, scenario] of scenarioDefinitions.entries()) {
+        const entry = results.scenarios[index]
+        for (const count of entry.counts) {
+          signal.throwIfAborted()
+          const key = `${scenario.key}_${count}`
+          status.textContent = `${completed + 1} of ${total}: ${scenario.title} (${count.toLocaleString()} messages)`
+          try {
+            const result = await runScenario(scenario, count, {
+              signal, spacingMs, iframe, timeoutMs: getTimeoutMs(scenario, count, spacingMs),
+            })
+            entry.results[count] = { status: 'ok', ...result }
+            writeResult(key, result, scenario.group !== GROUP_PAYLOAD)
+          } catch (error) {
+            if (signal.aborted) {
+              writeFailure(key, 'Cancelled')
+              throw signal.reason
+            }
+            const timedOut = error.name === 'BenchmarkTimeoutError'
+            entry.results[count] = { status: timedOut ? 'timed_out' : 'failed', error: error.message }
+            failures++
+            writeFailure(key, timedOut ? 'Timed out' : 'Failed', error.message)
+            console.error(`Benchmark failed: ${key}`, error)
+          }
+          completed++
+        }
+      }
+      status.textContent = failures ? `Finished with ${failures} failed or timed-out results.` : `Finished: ${completed} results.`
+      return results
+    } catch (error) {
+      status.textContent = signal.aborted ? `Cancelled after ${completed} results.` : `Benchmark run failed: ${error.message}`
+      throw error
+    } finally {
+      controller = null
+      setRunning(false)
+    }
   }
-}
 
-async function maybeRunAutomation() {
-  const automationConfig = await ipcRenderer.invoke('automation:get-config')
-  if (!automationConfig || !automationConfig.enabled) {
-    return
-  }
+  // Mark readiness before the frame can be used by the iframe scenario.
+  iframe.addEventListener('load', () => { iframe.dataset.ready = 'true' }, { once: true })
+  iframe.src = './iframe.html'
+  iframe.hidden = true
+  document.body.appendChild(iframe)
+  payload.value = JSON.stringify(getPayload(), null, 2)
+  resetTable(null)
+  updateDetails()
+  details.addEventListener('change', updateDetails)
+  mode.addEventListener('change', () => {
+    if (!controller) status.textContent = 'Ready. Run benchmarks to apply the selected mode.'
+  })
+  runButton.addEventListener('click', () => {
+    void run(mode.value === 'quick' ? [100] : null)
+      .then((results) => {
+        if (!results) return
+        chart.innerHTML = renderSummaryChart(results)
+        summary.hidden = false
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') console.error(error)
+      })
+  })
+  cancelButton.addEventListener('click', () => {
+    if (!controller) return
+    cancelButton.disabled = true
+    status.textContent = 'Cancelling…'
+    controller.abort()
+  })
 
   try {
-    if (Array.isArray(automationConfig.counts) && automationConfig.counts.length > 0) {
-      applyCountOverride(automationConfig.counts)
-      generateBenchmarkTable()
+    const config = await ipcRenderer.invoke('automation:get-config')
+    chromiumSandboxDisabled = config.chromiumSandboxDisabled
+    if (config.enabled) {
+      const results = await run(config.counts)
+      await ipcRenderer.invoke('automation:complete', results)
+    } else {
+      runButton.disabled = false
+      status.textContent = 'Ready.'
     }
-
-    const results = await runBenchFromUi()
-    await ipcRenderer.invoke('automation:complete', results)
   } catch (error) {
-    await ipcRenderer.invoke('automation:fail', serializeAutomationError(error))
+    status.textContent = `Could not complete benchmark: ${error.message}`
+    console.error(error)
+    await ipcRenderer.invoke('automation:fail', error.message)
   }
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-  attachHiddenTargets()
-  generateBenchmarkTable()
-  fillPayloadField()
-
-  const runButton = document.getElementById('run_button')
-  const cancelButton = document.getElementById('cancel_button')
-
-  if (runButton) {
-    runButton.addEventListener('click', () => {
-      if (isRunning) {
-        return
-      }
-
-      setTimeout(async () => {
-        try {
-          await runBenchFromUi()
-        } catch (error) {
-          if (TestBase.isCancellationError(error)) {
-            return
-          }
-        }
-      })
-    })
-  }
-
-  if (cancelButton) {
-    cancelButton.addEventListener('click', () => {
-      if (!isRunning) {
-        return
-      }
-
-      TestBase.requestCancellation()
-      setRunState(true, 'Cancelling...')
-    })
-  }
-
-  setRunState(false, 'Idle.')
-  void maybeRunAutomation()
 })

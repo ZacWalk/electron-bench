@@ -18,7 +18,7 @@ process.parentPort.on('message', (event) => {
   })
   benchPort.start()
 
-  process.parentPort.postMessage({ type: 'port-ready' })
+  benchPort.postMessage({ ready: true })
 })
 
 // 'spawn' only means the process exists; this says the script is loaded and listening.

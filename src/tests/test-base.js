@@ -1,314 +1,119 @@
-//@ts-check
-const MeasurementProvider = require('../measurement-provider');
-const payload = require('./payload')
-const {
-    ipcRenderer
-} = require('electron')
-const {
-    write_to_table,
-    writeMeasuresToTable
-} = require('../dom')
+const { ipcRenderer } = require('electron')
+const { randomUUID } = require('node:crypto')
+const { summarizeDurations } = require('../measurement-provider')
+const { getPayload } = require('./payload')
+const { scheduleMessages } = require('../bench-loop')
 
-const activeTests = new Set()
-let cancellationRequested = false
-
-function createCancellationError() {
-    const error = new Error('Benchmark run cancelled')
-    error.name = 'BenchmarkRunCancelledError'
-    return error
-}
-
-function beginTestRun() {
-    cancellationRequested = false
-}
-
-function requestCancellation() {
-    cancellationRequested = true
-    activeTests.forEach((test) => test.cancel())
-}
-
-function isCancellationRequested() {
-    return cancellationRequested
-}
-
-/** @param {unknown} error */
-function isCancellationError(error) {
-    return error instanceof Error && error.name === 'BenchmarkRunCancelledError'
-}
-
-function getSummaryPercentiles(measurements) {
-    return {
-        p1: measurements.getPercentile(1),
-        p25: measurements.getPercentile(25),
-        p50: measurements.getPercentile(50),
-        p75: measurements.getPercentile(75),
-        p90: measurements.getPercentile(90),
-        p99: measurements.getPercentile(99),
-        p100: measurements.getPercentile(100),
-    }
-}
-
-function beginMainLoopProbe() {
-    return ipcRenderer.invoke('mainloop:begin')
-}
-
-function endMainLoopProbe() {
-    return ipcRenderer.invoke('mainloop:end')
-}
 class TestBase {
-
-    /** @param {number} count @param {string} testKey @param {string=} ipcChannel @param {{ payloadFactory?: () => any, transfer?: boolean, serial?: boolean }=} options */
-    constructor(count, testKey, ipcChannel, options) {
+    constructor(count, testKey, channel, options) {
         this.count = count
         this.testKey = testKey
-        this.ipcChannel = ipcChannel
-        this.payloadFactory = options && options.payloadFactory
-        this.transfer = Boolean(options && options.transfer)
-        this.serial = Boolean(options && options.serial)
-        /** @type {Promise<void>[]} */
-        this.promises = []
-        this.measurements = new Map
-        this.resolvers = new Map
-        this.pendingPromiseResolvers = new Set
-        this.pendingTimeouts = new Set
-
-        this.processReply = this.processReply.bind(this)
-        this.processWindowMessage = this.processWindowMessage.bind(this)
-
-        ipcRenderer.on('asynchronous-reply', this.processReply)
-        window.addEventListener('message', this.processWindowMessage)
-
-        const millisInput = /** @type {HTMLInputElement | null} */ (document.getElementById('milisMultiplier'))
-        this.milisMultiplier = parseFloat(millisInput ? millisInput.value : '1')
-
-        this.milisMultiplier = this.milisMultiplier === undefined ? 1 : this.milisMultiplier
+        this.channel = channel
+        this.options = options
+        this.controller = new AbortController()
+        this.pending = new Map()
+        this.receiveReply = this.receiveReply.bind(this)
     }
 
-    registerActiveTest() {
-        activeTests.add(this)
+    async runTest() {
+        const { signal } = this.controller
+        const { signal: runSignal, timeoutMs } = this.options
+        const cancel = () => this.controller.abort(runSignal.reason)
+        runSignal.addEventListener('abort', cancel, { once: true })
+        if (runSignal.aborted) cancel()
+        const timer = setTimeout(() => {
+            const error = new Error('Benchmark timed out')
+            error.name = 'BenchmarkTimeoutError'
+            this.controller.abort(error)
+        }, timeoutMs)
+        const prefix = `${this.testKey}_${this.count}:${randomUUID()}:`
+        let measurement
+        let mainProcess
+
+        try {
+            signal.throwIfAborted()
+            await this.prepare(signal)
+            signal.throwIfAborted()
+            await ipcRenderer.invoke('mainloop:begin')
+            try {
+                signal.throwIfAborted()
+                measurement = await this.measure(prefix, signal)
+                signal.throwIfAborted()
+            } finally {
+                mainProcess = await ipcRenderer.invoke('mainloop:end')
+            }
+        } catch (error) {
+            throw signal.aborted ? signal.reason : error
+        } finally {
+            clearTimeout(timer)
+            runSignal.removeEventListener('abort', cancel)
+            this.pending.clear()
+            this.cleanup()
+        }
+
+        const { durations, totalMs } = measurement
+        if (durations.length !== this.count || durations.some((value) => !Number.isFinite(value) || value < 0)) {
+            throw new Error(`Expected ${this.count} valid latency samples; received ${durations.length}.`)
+        }
+        return {
+            totalMs,
+            ...summarizeDurations(durations),
+            mainProcess,
+        }
     }
 
-    unregisterActiveTest() {
-        activeTests.delete(this)
+    prepare() {
+        ipcRenderer.on('asynchronous-reply', this.receiveReply)
     }
 
     cleanup() {
-        ipcRenderer.removeListener('asynchronous-reply', this.processReply)
-        window.removeEventListener('message', this.processWindowMessage)
+        ipcRenderer.removeListener('asynchronous-reply', this.receiveReply)
     }
 
-    throwIfCancelled() {
-        if (cancellationRequested) {
-            throw createCancellationError()
+    receiveReply(_event, key) {
+        const resolve = this.pending.get(key)
+        if (resolve) {
+            this.pending.delete(key)
+            resolve()
         }
     }
 
-    cancel() {
-        this.pendingTimeouts.forEach((timerId) => clearTimeout(timerId))
-        this.pendingTimeouts.clear()
-
-        this.pendingPromiseResolvers.forEach((resolve) => resolve())
-        this.pendingPromiseResolvers.clear()
-
-        this.resolvers.forEach((resolve) => resolve())
-        this.resolvers.clear()
-    }
-
-    /** @param {MessageEvent<{ key: string, payload: any }>} e */
-    processWindowMessage(e) {
-        let { key, payload } = e.data;
-        this.processReply(e, key, payload)
-    }
-
-    /** @param {unknown} event @param {string} key @param {any} payload */
-    processReply(event, key, payload) {
-        if (typeof payload === 'string') {
-            JSON.parse(payload)
+    async measure(prefix, signal) {
+        const start = performance.now()
+        const durations = []
+        const send = async (index) => {
+            const key = `${prefix}${index}`
+            const payload = this.options.payloadFactory ? this.options.payloadFactory() : getPayload()
+            const sent = performance.now()
+            await this.roundTrip(key, payload)
+            if (!signal.aborted) durations.push(performance.now() - sent)
         }
 
-        const measurement = this.measurements.get(key)
-        if (measurement) {
-            this.measurements.set(key, Object.assign(measurement, {
-                endTime: performance.now()
-            }))
-        }
-
-        const resolver = this.resolvers.get(key)
-        if (resolver) {
-            resolver()
-            this.resolvers.delete(key);
-        }
-    }
-
-    /** @param {string} key @param {() => void} resolver */
-    saveResolver(key, resolver) {
-        this.measurements.set(key, {
-            startTime: performance.now()
-        })
-        this.resolvers.set(key, resolver)
-    }
-
-    /** @param {string} key @param {MeasurementProvider=} measures */
-    calculateAndShowPvalues(key, measures) {
-        if (!key) return;
-
-        const showPercentage = /** @type {HTMLInputElement | null} */ (document.getElementById('show_percentage'))
-        const shouldMeasure = showPercentage ? showPercentage.checked : false
-        if (!shouldMeasure) return
-
-        writeMeasuresToTable(key, measures || new MeasurementProvider(key, this.measurements))
-    }
-
-    getPayload() {
-        if (this.payloadFactory) {
-            return this.payloadFactory()
-        }
-
-        return payload.getPayload()
-    }
-
-    /** @param {number=} i */
-    getKey(i) {
-        if (i) {
-            return this.testKey + "_" + this.count + "_" + i
+        if (this.options.serial) {
+            // Use the same cancellable scheduler even when only one reply can be pending.
+            await scheduleMessages(1, 0, signal, async () => {
+                for (let index = 0; index < this.count; index++) {
+                    signal.throwIfAborted()
+                    await send(index)
+                }
+            })
         } else {
-            return this.testKey + '_' + this.count
+            await scheduleMessages(this.count, this.options.spacingMs, signal, send)
         }
+
+        return { durations, totalMs: Math.round(performance.now() - start) }
     }
 
-    afterTest() {
-        if (typeof this.start !== 'number') {
-            return
-        }
-
-        const time = Math.round(performance.now() - this.start);
-        const measurementSummary = new MeasurementProvider(this.getKey(), this.measurements)
-
-        write_to_table(this.getKey(), time);
-
-        this.calculateAndShowPvalues(this.getKey(), measurementSummary)
-
-        return {
-            totalMs: time,
-            averageMs: measurementSummary.average(),
-            percentiles: getSummaryPercentiles(measurementSummary),
-            sampleCount: measurementSummary.list().length,
-        }
+    roundTrip(key, payload) {
+        return new Promise((resolve) => {
+            this.pending.set(key, resolve)
+            this.sendMessage(key, payload)
+        })
     }
 
-    /** @param {string} key @param {any} payload */
     sendMessage(key, payload) {
-        if (this.ipcChannel) {
-            ipcRenderer.send(this.ipcChannel, key, payload)
-        }
-    }
-
-    // Every scenario is measured with the main-process lag probe running, so the
-    // cost a route imposes on the main process is reported next to its latency.
-    async runTest() {
-        await beginMainLoopProbe()
-
-        let summary
-        let mainProcess = null
-
-        try {
-            summary = await this.runTestBody()
-        } finally {
-            mainProcess = await endMainLoopProbe()
-        }
-
-        return summary ? Object.assign(summary, { mainProcess }) : summary
-    }
-
-    // One message in flight at a time. Required whenever a round trip can outlast the
-    // send spacing, otherwise the measurement is queue depth rather than service time.
-    async runSerialTestBody() {
-        this.registerActiveTest()
-        this.start = performance.now()
-
-        try {
-            for (let i = 0; i < this.count; i++) {
-                this.throwIfCancelled()
-
-                const key = this.getKey(i)
-                const messagePayload = this.getPayload()
-
-                await new Promise((resolve) => {
-                    this.pendingPromiseResolvers.add(resolve)
-
-                    const wrappedResolve = () => {
-                        this.pendingPromiseResolvers.delete(resolve)
-                        resolve(undefined)
-                    }
-
-                    this.saveResolver(key, wrappedResolve)
-                    this.sendMessage(key, messagePayload)
-                })
-            }
-
-            this.throwIfCancelled()
-
-            return this.afterTest()
-        } finally {
-            this.cleanup()
-            this.unregisterActiveTest()
-        }
-    }
-
-    async runTestBody() {
-        if (this.serial) {
-            return this.runSerialTestBody()
-        }
-
-        this.registerActiveTest()
-        this.start = performance.now()
-        try {
-            for (let i = 0; i < this.count; i++) {
-                this.throwIfCancelled()
-                this.promises.push(new Promise((resolve) => {
-                    this.pendingPromiseResolvers.add(resolve)
-
-                    const timerId = setTimeout(() => {
-                        this.pendingTimeouts.delete(timerId)
-
-                        if (cancellationRequested) {
-                            this.pendingPromiseResolvers.delete(resolve)
-                            resolve(undefined)
-                            return
-                        }
-
-                        const wrappedResolve = () => {
-                            this.pendingPromiseResolvers.delete(resolve)
-                            resolve(undefined)
-                        }
-
-                        // Built before saveResolver so payload construction is not timed.
-                        const messagePayload = this.getPayload()
-                        this.saveResolver(this.getKey(i), wrappedResolve)
-                        this.sendMessage(this.getKey(i), messagePayload)
-                    }, i * this.milisMultiplier)
-
-                    this.pendingTimeouts.add(timerId)
-                }))
-            }
-
-            await Promise.all(this.promises);
-            this.throwIfCancelled()
-
-            return this.afterTest()
-        } finally {
-            this.cleanup()
-            this.unregisterActiveTest()
-        }
+        ipcRenderer.send(this.channel, key, payload)
     }
 }
 
 module.exports = TestBase
-module.exports.beginTestRun = beginTestRun
-module.exports.requestCancellation = requestCancellation
-module.exports.isCancellationRequested = isCancellationRequested
-module.exports.createCancellationError = createCancellationError
-module.exports.isCancellationError = isCancellationError
-module.exports.getSummaryPercentiles = getSummaryPercentiles
-module.exports.beginMainLoopProbe = beginMainLoopProbe
-module.exports.endMainLoopProbe = endMainLoopProbe

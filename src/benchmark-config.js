@@ -22,7 +22,7 @@ const groupDefinitions = [
   {
     key: GROUP_PAYLOAD,
     title: 'Payload size and shape',
-    description: 'Transport is held constant (MessagePort to a background renderer) and only the payload changes. These scenarios send one message at a time and wait for each round trip, so the number is service time rather than queue depth. This route never touches the main process, so main-process CPU is not reported.',
+    description: 'Transport is held constant (MessagePort to a background renderer) and only the payload changes. These scenarios send one message at a time and wait for each round trip. Main only sets up the port, so the CPU comparison omits this group.',
     showMainCost: false,
   },
 ]
@@ -34,7 +34,7 @@ const scenarioDefinitions = [
     counts: numTests,
     title: 'Synchronous to main',
     api: 'ipcRenderer.sendSync',
-    commentary: 'Low round-trip latency because there is no reply event, but it blocks the main process for the whole call. Read the main-process CPU row, not the latency row.',
+    commentary: 'The sending renderer blocks until the main process replies. Compare the round-trip latency and the CPU consumed by main.',
     route: {
       title: 'Synchronous to main',
       detail: 'ipcRenderer.sendSync API',
@@ -81,6 +81,7 @@ const scenarioDefinitions = [
     group: GROUP_TRANSPORT,
     counts: numTests,
     title: 'Async to other renderer via main relay',
+    chartLabel: 'Renderer relay (proxy channel)',
     api: 'ipcRenderer.send via main relay',
     commentary: 'This is the most expensive cross-renderer route here because every round trip crosses the main process twice.',
     route: {
@@ -97,8 +98,9 @@ const scenarioDefinitions = [
     group: GROUP_TRANSPORT,
     counts: numTests,
     title: 'Async to other renderer via main-routed relay API',
+    chartLabel: 'Renderer relay (send-to channel)',
     api: 'Main-routed relay API',
-    commentary: 'Still a cross-process hop, so it should be measured against the older relay route in your actual workload rather than assumed to be faster.',
+    commentary: 'This is a second application channel using the same main-process relay pattern, not a direct Electron transport.',
     route: {
       title: 'Asynchronous to other renderer',
       detail: 'main-routed relay API',
@@ -113,6 +115,7 @@ const scenarioDefinitions = [
     group: GROUP_TRANSPORT,
     counts: numTests,
     title: 'Direct channel to other renderer',
+    chartLabel: 'MessagePort to renderer',
     api: 'MessagePort',
     commentary: 'Best fit for sustained renderer-to-renderer traffic because setup is separate from the high-volume message loop.',
     route: {
@@ -129,6 +132,7 @@ const scenarioDefinitions = [
     group: GROUP_TRANSPORT,
     counts: numTests,
     title: 'Direct channel to utility process',
+    chartLabel: 'MessagePort to utility process',
     api: 'utilityProcess + MessagePort',
     commentary: 'The modern place for background Node work. Compare it against the hidden background renderer on the row above before you reach for a hidden window.',
     route: {
@@ -161,6 +165,7 @@ const scenarioDefinitions = [
     group: GROUP_BRIDGE,
     counts: [BRIDGE_COUNT],
     title: 'Unsandboxed preload, direct ipcRenderer',
+    chartLabel: 'Unsandboxed preload, direct invoke',
     api: 'sandbox: false + ipcRenderer.invoke',
     commentary: 'Control for the bridge comparison. The benchmark loop runs inside the preload and calls ipcRenderer directly.',
     route: {
@@ -177,6 +182,7 @@ const scenarioDefinitions = [
     group: GROUP_BRIDGE,
     counts: [BRIDGE_COUNT],
     title: 'Sandboxed renderer through contextBridge',
+    chartLabel: 'Invoke via contextBridge',
     api: 'sandbox: true + contextBridge + ipcRenderer.invoke',
     commentary: 'The shape most Electron apps actually ship. The loop runs in the page main world and every call crosses the contextBridge into the preload.',
     route: {

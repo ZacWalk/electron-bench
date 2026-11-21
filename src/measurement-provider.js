@@ -1,38 +1,16 @@
+const percentile = require('percentile')
+const ranks = [1, 25, 50, 75, 90, 99, 100]
+const roundMs = (ms) => Math.round(ms * 1000) / 1000
 
-//@ts-check
-const percentile = require('percentile');
-
-class MeasurementProvider {
-
-    constructor(key, measurements) {
-        this._durations = []
-        for (let measurementKey of measurements.keys()) {
-            if (measurementKey.indexOf(key) > -1) {
-                this._durations.push(measurements.get(measurementKey).endTime - measurements.get(measurementKey).startTime)
-            }
-        }
+/** @param {number[]} durations */
+function summarizeDurations(durations) {
+    const sum = durations.reduce((total, duration) => total + duration, 0)
+    const values = percentile(ranks, durations)
+    return {
+        averageMs: roundMs(sum / durations.length),
+        percentiles: Object.fromEntries(ranks.map((rank, index) => [`p${rank}`, roundMs(values[index])])),
+        sampleCount: durations.length,
     }
-
-    average() {
-        const sum = this._durations.reduce(((acc, cur) => acc += cur), 0)
-        return Math.round(sum * 1000 / this._durations.length) / 1000
-    }
-
-    getPercentile(p) {
-        return Math.round(percentile(p, this._durations) * 1000) / 1000
-    }
-
-    list() {
-        return this._durations
-    }
-
-    /** @param {number[]} durations */
-    static fromDurations(durations) {
-        const provider = Object.create(MeasurementProvider.prototype)
-        provider._durations = [...durations]
-        return provider
-    }
-
 }
 
-module.exports = MeasurementProvider
+module.exports = { summarizeDurations }

@@ -1,31 +1,30 @@
 //@ts-check
 const { scenarioDefinitions, groupDefinitions } = require('./benchmark-config')
 
-/** @param {string} where @param {string | number} what */
-function write_to_table(where, what) {
+function writeFailure(where, label, message) {
     const element = document.getElementById(where)
     if (element) {
-        element.innerText = String(what);
+        element.textContent = label
+        if (message) appendMetric(element, message, 'result_error')
     }
 }
 
-/** @param {string} where @param {{ average(): number, getPercentile(p: number): number }} measures */
-function writeMeasuresToTable(where, measures) {
+function appendMetric(element, text, className = 'measures') {
+    const line = document.createElement('p')
+    line.className = className
+    line.textContent = text
+    element.appendChild(line)
+}
+
+function writeResult(where, result, showMainCost) {
     const element = document.getElementById(where)
-    const childEl = document.createElement("div");
-    childEl.innerHTML = `<p class="measures">
-    avg: ${ measures.average()} ms </br>
-    p1: ${ measures.getPercentile(1) }</br>
-    p25: ${ measures.getPercentile(25) }</br>
-    p50: ${ measures.getPercentile(50) }</br>
-    p75: ${ measures.getPercentile(75) }</br>
-    p90: ${ measures.getPercentile(90) }</br>
-    p99: ${ measures.getPercentile(99) }</br>
-    last: ${ measures.getPercentile(100) }</br>
-    </p>`
-    if (element) {
-        element.appendChild(childEl)
-    }
+    if (!element) return
+    const { totalMs, averageMs, percentiles, mainProcess } = result
+    element.replaceChildren()
+    appendMetric(element, `p50 ${percentiles.p50.toFixed(3)} ms · p99 ${percentiles.p99.toFixed(3)} ms`, 'result_latency')
+    if (showMainCost) appendMetric(element, `Main CPU ${mainProcess.cpuMs.toFixed(1)} ms`)
+    appendMetric(element, `Batch ${totalMs.toLocaleString()} ms`)
+    appendMetric(element, `Avg ${averageMs.toFixed(3)} ms · p25 ${percentiles.p25.toFixed(3)} ms · p75 ${percentiles.p75.toFixed(3)} ms`, 'measures extra_details')
 }
 
 /** @param {string[]} steps @param {string} arrow */
@@ -52,7 +51,7 @@ function buildRouteCard(config) {
 }
 
 /** @param {number[]} [columnCounts] @param {Map<string, number[]>} [scenarioCounts] */
-function generateTableSync(columnCounts = [100, 1000, 10000], scenarioCounts) {
+function generateTable(columnCounts, scenarioCounts) {
     const table = /** @type {HTMLTableElement | null} */ (document.getElementById('resultTable'))
     if (!table) {
         return
@@ -66,9 +65,10 @@ function generateTableSync(columnCounts = [100, 1000, 10000], scenarioCounts) {
         const thead = document.createElement('thead')
         const headRow = document.createElement('tr')
 
-        const headerCells = ['', ...columnCounts].map((num) => {
+        const headerCells = ['Scenario', ...columnCounts.map((num) => `${num.toLocaleString()} messages`)].map((label) => {
             const th = document.createElement('th')
-            th.append(num.toString(), num ? " messages" : '')
+            th.scope = 'col'
+            th.textContent = label
             return th
         })
 
@@ -77,41 +77,45 @@ function generateTableSync(columnCounts = [100, 1000, 10000], scenarioCounts) {
         tableEl.append(thead)
     }
 
-    /** @param {string} title */
-    function appendGroupHeader(title) {
+    function appendGroupHeader(body, title) {
         const row = document.createElement('tr')
         row.className = 'group_row'
 
-        const cell = document.createElement('td')
+        const cell = document.createElement('th')
         cell.setAttribute('colspan', String(columnCounts.length + 1))
+        cell.scope = 'rowgroup'
         cell.textContent = title
 
         row.append(cell)
-        tableEl.append(row)
+        body.append(row)
     }
 
-    /** @param {typeof scenarioDefinitions[number]} scenario */
-    function createRow(scenario) {
+    /** @param {HTMLTableSectionElement} body @param {typeof scenarioDefinitions[number]} scenario */
+    function createRow(body, scenario) {
         const counts = (scenarioCounts && scenarioCounts.get(scenario.key)) || scenario.counts
         const row = document.createElement('tr')
 
-        const descCell = document.createElement('td')
+        const descCell = document.createElement('th')
+        descCell.scope = 'row'
         descCell.innerHTML = buildRouteCard(scenario.route)
 
         const valueCells = columnCounts.map((num) => {
             const td = document.createElement('td')
 
             if (counts.includes(num)) {
-                const span = document.createElement('span')
-                span.setAttribute('id', `${scenario.key}_${num}`)
-                td.append(span)
+                const result = document.createElement('div')
+                result.id = `${scenario.key}_${num}`
+                result.textContent = 'Pending'
+                td.append(result)
+            } else {
+                td.textContent = '—'
             }
 
             return td
         })
 
         row.append(...[descCell, ...valueCells])
-        tableEl.append(row)
+        body.append(row)
     }
 
     function appendRows() {
@@ -122,8 +126,9 @@ function generateTableSync(columnCounts = [100, 1000, 10000], scenarioCounts) {
                 return
             }
 
-            appendGroupHeader(group.title)
-            scenarios.forEach(createRow)
+            const body = tableEl.createTBody()
+            appendGroupHeader(body, group.title)
+            scenarios.forEach((scenario) => createRow(body, scenario))
         })
     }
 
@@ -131,18 +136,8 @@ function generateTableSync(columnCounts = [100, 1000, 10000], scenarioCounts) {
     appendRows()
 }
 
-/** @param {number[]} columnCounts @param {Map<string, number[]>} [scenarioCounts] */
-async function generateTable(columnCounts, scenarioCounts) {
-    return new Promise((resolve) => {
-        generateTableSync(columnCounts, scenarioCounts)
-        setTimeout(() => {
-            resolve(undefined)
-        }, 100);
-    })
-}
-
 module.exports = {
-    writeMeasuresToTable,
-    write_to_table,
+    writeResult,
+    writeFailure,
     generateTable,
 }

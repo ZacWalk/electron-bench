@@ -37,16 +37,8 @@ function getPayload(){
     return currentPayload
 }
 
-function updatePayload() {
-    const text = document.getElementById('payloadInput').value
-    try {
-        const json = JSON.parse(text)
-        setCurrentPayload(json)
-        return true
-    } catch (e) {
-        alert("Unable to parse input payload. Please try again!")
-        return false
-    }
+function updatePayload(text) {
+    setCurrentPayload(JSON.parse(text))
 }
 
 /** @param {number} targetBytes */

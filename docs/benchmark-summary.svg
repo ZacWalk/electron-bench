@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="753" viewBox="0 0 960 753" role="img" aria-labelledby="benchmark-chart-title benchmark-chart-description" font-family="Segoe UI, Arial, sans-serif">
+<title id="benchmark-chart-title">Benchmark summary</title>
+<desc id="benchmark-chart-description">Median and p99 round-trip latency and main-process CPU by scenario at the largest shared batch size in each group. Use the results tables for the underlying values.</desc>
+<rect width="960" height="753" rx="14" fill="#f6fbfb"/>
+<text x="22" y="33" fill="#18363e" font-size="24" font-weight="700" text-anchor="start">Benchmark summary</text>
+<text x="22" y="55" fill="#486168" font-size="12" font-weight="400" text-anchor="start">Electron 45.3.2 | 2026-11-21</text>
+<text x="310" y="80" fill="#18363e" font-size="14" font-weight="700" text-anchor="start">Round-trip latency (ms)</text>
+<circle cx="315" cy="97" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<text x="325" y="101" fill="#486168" font-size="12" font-weight="400" text-anchor="start">p50</text>
+<rect x="370" y="93" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="384" y="101" fill="#486168" font-size="12" font-weight="400" text-anchor="start">p99</text>
+<text x="653" y="101" fill="#486168" font-size="12" font-weight="400" text-anchor="end">p50 / p99</text>
+<text x="694" y="80" fill="#18363e" font-size="14" font-weight="700" text-anchor="start">Main-process CPU (ms per batch)</text>
+<rect x="16" y="114" width="928" height="27" rx="5" fill="#def0f0"/>
+<text x="24" y="133" fill="#18363e" font-size="14" font-weight="700" text-anchor="start">Transport routes | 10,000 messages</text>
+<text x="310" y="156" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">0</text>
+<line x1="310" y1="162" x2="310" y2="378" stroke="#c5dadd" stroke-width="1"/>
+<text x="428" y="156" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">1</text>
+<line x1="428" y1="162" x2="428" y2="378" stroke="#c5dadd" stroke-width="1"/>
+<text x="545" y="156" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">2</text>
+<line x1="545" y1="162" x2="545" y2="378" stroke="#c5dadd" stroke-width="1"/>
+<text x="694" y="156" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">0</text>
+<line x1="694" y1="162" x2="694" y2="378" stroke="#c5dadd" stroke-width="1"/>
+<text x="782" y="156" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">2,500</text>
+<line x1="782" y1="162" x2="782" y2="378" stroke="#c5dadd" stroke-width="1"/>
+<text x="869" y="156" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">5,000</text>
+<line x1="869" y1="162" x2="869" y2="378" stroke="#c5dadd" stroke-width="1"/>
+<text x="24" y="180.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">Synchronous to main</text>
+<line x1="322" y1="172.5" x2="357" y2="178.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="322" cy="172.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="353" y="174.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="180.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.1 / 0.4</text>
+<rect x="694" y="171.5" width="13" height="8" fill="#316b50"/>
+<text x="933" y="180.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">360</text>
+<text x="24" y="207.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">Asynchronous to main</text>
+<line x1="357" y1="199.5" x2="392" y2="205.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="357" cy="199.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="388" y="201.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="207.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.4 / 0.7</text>
+<rect x="694" y="198.5" width="8" height="8" fill="#316b50"/>
+<text x="933" y="207.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">234</text>
+<text x="24" y="234.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">Request-response to main</text>
+<line x1="345" y1="226.5" x2="404" y2="232.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="345" cy="226.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="400" y="228.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="234.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.3 / 0.8</text>
+<rect x="694" y="225.5" width="16" height="8" fill="#316b50"/>
+<text x="933" y="234.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">453</text>
+<text x="24" y="261.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">Renderer relay (proxy channel)</text>
+<line x1="392" y1="253.5" x2="439" y2="259.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="392" cy="253.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="435" y="255.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="261.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.7 / 1.1</text>
+<rect x="694" y="252.5" width="46" height="8" fill="#316b50"/>
+<text x="933" y="261.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">1,312</text>
+<text x="24" y="288.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">Renderer relay (send-to channel)</text>
+<line x1="392" y1="280.5" x2="463" y2="286.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="392" cy="280.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="459" y="282.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="288.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.7 / 1.3</text>
+<rect x="694" y="279.5" width="90" height="8" fill="#316b50"/>
+<text x="933" y="288.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">2,579</text>
+<text x="24" y="315.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">MessagePort to renderer</text>
+<line x1="345" y1="307.5" x2="369" y2="313.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="345" cy="307.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="365" y="309.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="315.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.3 / 0.5</text>
+<rect x="694" y="306.5" width="6" height="8" fill="#316b50"/>
+<text x="933" y="315.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">171</text>
+<text x="24" y="342.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">MessagePort to utility process</text>
+<line x1="345" y1="334.5" x2="381" y2="340.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="345" cy="334.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="377" y="336.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="342.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.3 / 0.6</text>
+<rect x="694" y="333.5" width="9" height="8" fill="#316b50"/>
+<text x="933" y="342.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">250</text>
+<text x="24" y="369.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">Async to iframe</text>
+<line x1="345" y1="361.5" x2="381" y2="367.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="345" cy="361.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="377" y="363.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="369.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.3 / 0.6</text>
+<rect x="694" y="360.5" width="7" height="8" fill="#316b50"/>
+<text x="933" y="369.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">188</text>
+<rect x="16" y="390" width="928" height="27" rx="5" fill="#def0f0"/>
+<text x="24" y="409" fill="#18363e" font-size="14" font-weight="700" text-anchor="start">Sandbox and contextBridge cost | 1,000 messages</text>
+<text x="310" y="432" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">0</text>
+<line x1="310" y1="438" x2="310" y2="492" stroke="#c5dadd" stroke-width="1"/>
+<text x="428" y="432" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">0.5</text>
+<line x1="428" y1="438" x2="428" y2="492" stroke="#c5dadd" stroke-width="1"/>
+<text x="545" y="432" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">1</text>
+<line x1="545" y1="438" x2="545" y2="492" stroke="#c5dadd" stroke-width="1"/>
+<text x="694" y="432" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">0</text>
+<line x1="694" y1="438" x2="694" y2="492" stroke="#c5dadd" stroke-width="1"/>
+<text x="782" y="432" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">0.5</text>
+<line x1="782" y1="438" x2="782" y2="492" stroke="#c5dadd" stroke-width="1"/>
+<text x="869" y="432" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">1</text>
+<line x1="869" y1="438" x2="869" y2="492" stroke="#c5dadd" stroke-width="1"/>
+<text x="24" y="456.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">Unsandboxed preload, direct invoke</text>
+<line x1="381" y1="448.5" x2="498" y2="454.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="381" cy="448.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="494" y="450.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="456.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.3 / 0.8</text>
+<rect x="694" y="447.5" width="0" height="8" fill="#316b50"/>
+<text x="933" y="456.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0</text>
+<text x="24" y="483.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">Invoke via contextBridge</text>
+<line x1="381" y1="475.5" x2="451" y2="481.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="381" cy="475.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="447" y="477.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="483.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.3 / 0.6</text>
+<rect x="694" y="474.5" width="0" height="8" fill="#316b50"/>
+<text x="933" y="483.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0</text>
+<rect x="16" y="504" width="928" height="27" rx="5" fill="#def0f0"/>
+<text x="24" y="523" fill="#18363e" font-size="14" font-weight="700" text-anchor="start">Payload size and shape | 100 messages</text>
+<text x="310" y="546" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">0</text>
+<line x1="310" y1="552" x2="310" y2="714" stroke="#c5dadd" stroke-width="1"/>
+<text x="428" y="546" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">10</text>
+<line x1="428" y1="552" x2="428" y2="714" stroke="#c5dadd" stroke-width="1"/>
+<text x="545" y="546" fill="#486168" font-size="12" font-weight="400" text-anchor="middle">20</text>
+<line x1="545" y1="552" x2="545" y2="714" stroke="#c5dadd" stroke-width="1"/>
+<text x="694" y="546" fill="#486168" font-size="12" font-weight="400" text-anchor="start">Not compared for payloads</text>
+<text x="24" y="570.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">JSON object, 1 KB</text>
+<line x1="311" y1="562.5" x2="312" y2="568.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="311" cy="562.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="308" y="564.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="570.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.1 / 0.2</text>
+<text x="24" y="597.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">JSON object, 64 KB</text>
+<line x1="323" y1="589.5" x2="345" y2="595.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="323" cy="589.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="341" y="591.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="597.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">1.1 / 3</text>
+<text x="24" y="624.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">JSON object, 1 MB</text>
+<line x1="487" y1="616.5" x2="524" y2="622.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="487" cy="616.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="520" y="618.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="624.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">15.1 / 18.2</text>
+<text x="24" y="651.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">Deeply nested object</text>
+<line x1="312" y1="643.5" x2="316" y2="649.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="312" cy="643.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="312" y="645.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="651.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">0.2 / 0.5</text>
+<text x="24" y="678.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">ArrayBuffer, 1 MB, copied</text>
+<line x1="358" y1="670.5" x2="393" y2="676.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="358" cy="670.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="389" y="672.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="678.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">4.1 / 7.1</text>
+<text x="24" y="705.5" fill="#18363e" font-size="14" font-weight="400" text-anchor="start">ArrayBuffer, 1 MB, transferred</text>
+<line x1="343" y1="697.5" x2="362" y2="703.5" stroke="#42656e" stroke-width="2"/>
+<circle cx="343" cy="697.5" r="4.5" fill="#11667b" stroke="#fff" stroke-width="1"/>
+<rect x="358" y="699.5" width="8" height="8" fill="#8a461a" stroke="#fff" stroke-width="1"/>
+<text x="653" y="705.5" fill="#486168" font-size="12" font-weight="400" text-anchor="end">2.8 / 4.4</text>
+<text x="22" y="739" fill="#486168" font-size="12" font-weight="400" text-anchor="start">Each group uses its own scales and the largest batch size shared by its scenarios. Lower is better.</text>
+</svg>
